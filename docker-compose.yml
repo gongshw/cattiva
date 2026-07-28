@@ -4,15 +4,15 @@ services:
     container_name: cattiva-config-gen
     volumes:
       - xray-configs:/etc/xray
-      - traefik-dynamic:/etc/traefik/dynamic
-      - traefik-config:/etc/traefik/static
+      - nginx-conf:/etc/nginx/conf.d
+      - ./data/acme:/acme
       - ./xray:/templates/xray:ro
-      - ./traefik/dynamic/tcp.yml.template:/templates/traefik/tcp.yml.template:ro
-      - ./traefik/traefik.yml.template:/templates/traefik/traefik.yml.template:ro
+      - ./nginx:/templates/nginx:ro
       - ./entrypoint.sh:/entrypoint.sh:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}
       - ACME_EMAIL=${ACME_EMAIL:?err}
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
       - VLESS_UUID=${VLESS_UUID:?err}
       - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY:?err}
       - REALITY_DEST=${REALITY_DEST:-www.apple.com:443}
@@ -23,23 +23,18 @@ services:
       - VMESS_SERVER_NAMES=${VMESS_SERVER_NAMES}
     command: ["sh", "/entrypoint.sh"]
 
-  traefik:
-    image: traefik:latest
-    container_name: traefik
+  nginx:
+    image: nginx:latest
+    container_name: cattiva-nginx
     restart: always
-    command:
-      - --configFile=/etc/traefik/static/traefik.yml
     ports:
       - 80:80
       - 443:443
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-config:/etc/traefik/static:ro
-      - traefik-dynamic:/etc/traefik/dynamic
+      - nginx-conf:/etc/nginx/conf.d:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./www:/www:ro
       - ./data/acme:/acme
-      - ./data/traefik:/data
-    environment:
-      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
     depends_on:
       config-gen:
         condition: service_completed_successfully
@@ -70,21 +65,10 @@ services:
     networks:
       - cattiva
 
-  static:
-    image: alpine:latest
-    container_name: cattiva-static
-    restart: always
-    volumes:
-      - ./www:/www:ro
-    command: ["sh", "-c", "busybox httpd -f -p 80 -h /www"]
-    networks:
-      - cattiva
-
 networks:
   cattiva:
     driver: bridge
 
 volumes:
   xray-configs:
-  traefik-dynamic:
-  traefik-config:
+  nginx-conf:
