@@ -1,6 +1,6 @@
 services:
   config-gen:
-    image: alpine:latest
+    image: python:3-alpine
     container_name: cattiva-config-gen
     volumes:
       - xray-configs:/etc/xray
@@ -9,7 +9,7 @@ services:
       - ./xray:/templates/xray:ro
       - ./traefik/dynamic/tcp.yml.template:/templates/traefik/tcp.yml.template:ro
       - ./traefik/traefik.yml.template:/templates/traefik/traefik.yml.template:ro
-      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./entrypoint.py:/entrypoint.py:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}
       - ACME_EMAIL=${ACME_EMAIL:?err}
@@ -20,7 +20,7 @@ services:
       - REALITY_SHORT_ID=${REALITY_SHORT_ID:?err}
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
-    command: ["sh", "/entrypoint.sh"]
+    command: ["python3", "/entrypoint.py"]
 
   traefik:
     image: traefik:latest

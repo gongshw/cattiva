@@ -44,7 +44,7 @@ cattiva/
 ├── .env.example            # Config template (safe to commit)
 ├── .env                    # Your secrets (gitignored)
 ├── docker-compose.yml
-├── entrypoint.sh           # config-gen entry script
+├── entrypoint.py           # config-gen entry script
 ├── xray/
 │   ├── reality.json.template
 │   └── vmess.json.template
