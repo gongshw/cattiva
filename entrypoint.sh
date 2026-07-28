@@ -33,7 +33,7 @@ build_host() {
 }
 
 export REALITY_SNI=$(build_sni "$REALITY_SERVER_NAMES")
-export VMESS_HTTP_RULE=$(build_host "$VMESS_SERVER_NAMES")
+export VMESS_HTTP_RULE=$(build_host "$SITE_DOMAIN")
 
 envsubst < /templates/traefik/tcp.yml.template > /etc/traefik/dynamic/tcp.yml
 

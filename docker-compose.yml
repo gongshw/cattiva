@@ -20,7 +20,6 @@ services:
       - REALITY_SHORT_ID=${REALITY_SHORT_ID:-6ba85179e30d4fc2}
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
-      - VMESS_SERVER_NAMES=${VMESS_SERVER_NAMES}
     command: ["sh", "/entrypoint.sh"]
 
   traefik:
