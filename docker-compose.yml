@@ -71,12 +71,11 @@ services:
       - cattiva
 
   static:
-    image: alpine:latest
+    image: nginx:alpine
     container_name: cattiva-static
     restart: always
     volumes:
-      - ./www:/www:ro
-    command: ["sh", "-c", "busybox httpd -f -p 80 -h /www"]
+      - ./www:/usr/share/nginx/html:ro
     networks:
       - cattiva
 
