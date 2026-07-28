@@ -78,11 +78,20 @@ def main():
     for key in REQUIRED:
         env(key)
 
+    # Compute derived values
+    reality_names = env("REALITY_SERVER_NAMES")
+    site_domain = env("SITE_DOMAIN")
+    extra = {
+        "REALITY_SERVER_NAMES_JSON": build_json_array(reality_names),
+        "REALITY_SNI": build_sni(reality_names),
+        "VMESS_HTTP_RULE": build_host(site_domain),
+    }
+
     print("Generating xray configs...")
     for name in ("reality.json", "vmess.json"):
         tmpl = TEMPLATES / "xray" / f"{name}.template"
         if tmpl.exists():
-            render_template(tmpl, OUTPUTS["xray"] / name)
+            render_template(tmpl, OUTPUTS["xray"] / name, extra=extra)
 
     print("Generating Traefik configs...")
     render_template(
@@ -91,16 +100,10 @@ def main():
     )
 
     # Build dynamic config with computed values
-    reality_names = env("REALITY_SERVER_NAMES")
-    site_domain = env("SITE_DOMAIN")
-
     render_template(
         TEMPLATES / "traefik" / "tcp.yml.template",
         OUTPUTS["traefik_dynamic"] / "tcp.yml",
-        extra={
-            "REALITY_SNI": build_sni(reality_names),
-            "VMESS_HTTP_RULE": build_host(site_domain),
-        },
+        extra=extra,
     )
 
     print("Done.")

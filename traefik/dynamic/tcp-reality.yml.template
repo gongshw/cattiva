@@ -1,0 +1,17 @@
+# TCP routing - passthrough for Reality
+
+tcp:
+  routers:
+    reality:
+      rule: 'HostSNI(`www.apple.com`) || HostSNI(`www.icloud.com`)'
+      entryPoints:
+        - websecure
+      service: xray-reality
+      tls:
+        passthrough: true
+
+  services:
+    xray-reality:
+      loadBalancer:
+        servers:
+          - address: "xray-reality:4433"

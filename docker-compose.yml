@@ -7,7 +7,7 @@ services:
       - traefik-dynamic:/etc/traefik/dynamic
       - traefik-config:/etc/traefik/static
       - ./xray:/templates/xray:ro
-      - ./traefik/dynamic/tcp.yml.template:/templates/traefik/tcp.yml.template:ro
+      - ./traefik/dynamic:/templates/traefik/dynamic:ro
       - ./traefik/traefik.yml.template:/templates/traefik/traefik.yml.template:ro
       - ./entrypoint.py:/entrypoint.py:ro
     environment:
