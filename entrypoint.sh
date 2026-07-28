@@ -1,49 +1,40 @@
 #!/bin/sh
 set -e
 
-apk add --no-cache gettext openssl curl >/dev/null 2>&1
+apk add --no-cache gettext openssl >/dev/null 2>&1
 
 echo "Generating xray configs..."
 envsubst < /templates/xray/reality.json.template > /etc/xray/reality.json
 envsubst < /templates/xray/vmess.json.template > /etc/xray/vmess.json
 
-echo "Generating nginx configs..."
+echo "Generating Traefik configs..."
+envsubst < /templates/traefik/traefik.yml.template > /etc/traefik/static/traefik.yml
 
-# Build nginx stream map rules
-build_map() {
+# Build HostSNI pattern (for TCP passthrough)
+build_sni() {
   acc=""; sep=""
   for d in $(echo "$1" | tr ',' ' '); do
     [ -z "$d" ] && continue
-    d=$(echo "$d" | xargs)
-    acc="${acc}${sep}    ${d} xray-reality"
-    sep=";\n"
+    acc="${acc}${sep}HostSNI(\`$d\`)"
+    sep=" || "
   done
   echo "$acc"
 }
 
-REALITY_MAP_RULES=$(build_map "$REALITY_SERVER_NAMES")
-export REALITY_MAP_RULES
-export VMESS_SERVER_NAMES  # already set, used in http template
+# Build Host pattern (for HTTP routing)
+build_host() {
+  acc=""; sep=""
+  for d in $(echo "$1" | tr ',' ' '); do
+    [ -z "$d" ] && continue
+    acc="${acc}${sep}Host(\`$d\`)"
+    sep=" || "
+  done
+  echo "$acc"
+}
 
-envsubst < /templates/nginx/stream.conf.template > /etc/nginx/stream.conf
-envsubst < /templates/nginx/http.conf.template > /etc/nginx/http.conf
+export REALITY_SNI=$(build_sni "$REALITY_SERVER_NAMES")
+export VMESS_HTTP_RULE=$(build_host "$VMESS_SERVER_NAMES")
 
-echo "Obtaining SSL certificate..."
-export CF_Token="$CF_DNS_API_TOKEN"
-export CF_Email="$ACME_EMAIL"
-
-# Install acme.sh
-if [ ! -f /acme/acme.sh ]; then
-  curl -sL https://get.acme.sh | sh -s email="$ACME_EMAIL" 2>/dev/null
-  ln -sf /root/.acme.sh/acme.sh /acme/acme.sh
-fi
-
-# Issue/renew cert for the domain
-/acme/acme.sh --issue \
-  --dns dns_cf \
-  -d "$SITE_DOMAIN" \
-  --keylength 2048 \
-  --cert-home /acme \
-  --force 2>/dev/null || true
+envsubst < /templates/traefik/tcp.yml.template > /etc/traefik/dynamic/tcp.yml
 
 echo "Done."
