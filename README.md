@@ -63,4 +63,7 @@ docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest x
 
 # UUIDs (one for VLESS, one for VMess)
 docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid
+
+# Short ID (hex string, up to 16 chars)
+openssl rand -hex 8
 ```
