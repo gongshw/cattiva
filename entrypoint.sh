@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-apk add --no-cache gettext openssl >/dev/null 2>&1
+apk add --no-cache gettext >/dev/null 2>&1
 
 echo "Generating xray configs..."
 envsubst < /templates/xray/reality.json.template > /etc/xray/reality.json
