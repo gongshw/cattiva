@@ -8,13 +8,7 @@
     },
     "streamSettings": {
       "network": "ws",
-      "security": "tls",
-      "tlsSettings": {
-        "certificates": [{
-          "certificateFile": "/etc/xray/certs/cert.pem",
-          "keyFile": "/etc/xray/certs/key.pem"
-        }]
-      },
+      "security": "none",
       "wsSettings": {
         "path": "${VMESS_WS_PATH}",
         "headers": {}

@@ -5,12 +5,14 @@ services:
     volumes:
       - xray-configs:/etc/xray
       - traefik-dynamic:/etc/traefik/dynamic
+      - traefik-config:/etc/traefik/static
       - ./xray:/templates/xray:ro
       - ./traefik/dynamic/tcp.yml.template:/templates/traefik/tcp.yml.template:ro
-      - ./data/certs:/certs
+      - ./traefik/traefik.yml.template:/templates/traefik/traefik.yml.template:ro
       - ./entrypoint.sh:/entrypoint.sh:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}
+      - ACME_EMAIL=${ACME_EMAIL:?err}
       - VLESS_UUID=${VLESS_UUID:?err}
       - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY:?err}
       - REALITY_DEST=${REALITY_DEST:-www.apple.com:443}
@@ -26,13 +28,13 @@ services:
     container_name: traefik
     restart: always
     command:
-      - --configFile=/etc/traefik/traefik.yml
+      - --configFile=/etc/traefik/static/traefik.yml
     ports:
       - 80:80
       - 443:443
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik-config:/etc/traefik/static:ro
       - traefik-dynamic:/etc/traefik/dynamic
       - ./data/acme:/acme
       - ./data/traefik:/data
@@ -62,7 +64,6 @@ services:
     restart: always
     volumes:
       - xray-configs:/etc/xray:ro
-      - ./data/certs:/etc/xray/certs:ro
     depends_on:
       config-gen:
         condition: service_completed_successfully
@@ -76,3 +77,4 @@ networks:
 volumes:
   xray-configs:
   traefik-dynamic:
+  traefik-config:
