@@ -12,9 +12,9 @@
       "security": "reality",
       "realitySettings": {
         "show": false,
-        "dest": "www.apple.com:443",
+        "dest": "${REALITY_DEST}",
         "xver": 0,
-        "serverNames": ["www.apple.com", "www.icloud.com"],
+        "serverNames": ${REALITY_SERVER_NAMES_JSON},
         "privateKey": "${REALITY_PRIVATE_KEY}",
         "shortIds": ["${REALITY_SHORT_ID}"]
       }

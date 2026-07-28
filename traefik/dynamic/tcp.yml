@@ -1,10 +1,10 @@
-# TCP routing - SNI-based passthrough
-# Reality SNIs → xray; unmatched traffic dropped
+# TCP routing - passthrough all traffic to xray
+# xray handles Reality auth and fallback internally
 
 tcp:
   routers:
-    xray-reality:
-      rule: "HostSNI(`www.apple.com`) || HostSNI(`www.icloud.com`)"
+    xray:
+      rule: "HostSNI(`*`)"
       entryPoints:
         - websecure
       service: xray
