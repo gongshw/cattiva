@@ -24,27 +24,27 @@ docker compose up -d
         │                  │                  │
         ▼                  ▼                  ▼
   xray-reality:4433   xray-vmess:4443    nginx:alpine:80
-  (VLESS+Reality)     (裸 VMess+WS)      (静态伪装站点)
+  (VLESS+Reality)     (VMess+WS)         (static camouflage)
 ```
 
 ## Services
 
 | Service | Image | Role |
 |---|---|---|
-| **traefik** | `traefik:latest` | 入口:443, ACME, SNI 分流, WS 反代 |
+| **traefik** | `traefik:latest` | Entry point :443, ACME, SNI routing, WS proxy |
 | **xray-reality** | `xray-core:latest` | VLESS+Reality |
-| **xray-vmess** | `xray-core:latest` | VMess+WS (Traefik 终结 TLS) |
-| **static** | `nginx:alpine` | 伪装静态页面 |
-| **config-gen** | `alpine:latest` | 启动时生成配置, 自动退出 |
+| **xray-vmess** | `xray-core:latest` | VMess+WS (TLS terminated by Traefik) |
+| **static** | `nginx:alpine` | Static camouflage page |
+| **config-gen** | `alpine:latest` | Generates configs on startup, auto-exits |
 
 ## Project Structure
 
 ```
 cattiva/
-├── .env.example            # 配置模板 (安全可提交)
-├── .env                    # 你的密钥 (gitignored)
+├── .env.example            # Config template (safe to commit)
+├── .env                    # Your secrets (gitignored)
 ├── docker-compose.yml
-├── entrypoint.sh           # config-gen 入口脚本
+├── entrypoint.sh           # config-gen entry script
 ├── xray/
 │   ├── reality.json.template
 │   └── vmess.json.template
@@ -52,7 +52,7 @@ cattiva/
 │   ├── traefik.yml.template
 │   └── dynamic/tcp.yml.template
 └── www/
-    └── index.html          # 伪装站点
+    └── index.html          # Camouflage site
 ```
 
 ## Generate Keys
