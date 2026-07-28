@@ -1,0 +1,8 @@
+# Environment (contains secrets)
+.env
+
+# Generated config (from template + .env)
+xray/config.json
+
+# Runtime data
+data/

@@ -1,0 +1,18 @@
+# TCP routing - SNI-based passthrough
+# Reality SNIs → xray; unmatched traffic dropped
+
+tcp:
+  routers:
+    xray-reality:
+      rule: "HostSNI(`www.apple.com`) || HostSNI(`www.icloud.com`)"
+      entryPoints:
+        - websecure
+      service: xray
+      tls:
+        passthrough: true
+
+  services:
+    xray:
+      loadBalancer:
+        servers:
+          - address: xray:4433
