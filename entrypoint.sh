@@ -15,6 +15,7 @@ build_sni() {
   acc=""; sep=""
   for d in $(echo "$1" | tr ',' ' '); do
     [ -z "$d" ] && continue
+    d=$(echo "$d" | xargs)
     acc="${acc}${sep}HostSNI(\`$d\`)"
     sep=" || "
   done
@@ -34,6 +35,25 @@ build_host() {
 
 export REALITY_SNI=$(build_sni "$REALITY_SERVER_NAMES")
 export VMESS_HTTP_RULE=$(build_host "$SITE_DOMAIN")
+
+# Validate: serverNames must not be empty for Reality
+if [ -z "$REALITY_SERVER_NAMES" ]; then
+  echo "ERROR: REALITY_SERVER_NAMES is required" >&2
+  exit 1
+fi
+
+# Build JSON array from comma-separated list (for reality config)
+build_json_array() {
+  acc=""; sep=""
+  for d in $(echo "$1" | tr ',' ' '); do
+    [ -z "$d" ] && continue
+    d=$(echo "$d" | xargs)
+    acc="${acc}${sep}\"$d\""
+    sep=", "
+  done
+  echo "[$acc]"
+}
+export REALITY_SERVER_NAMES_JSON=$(build_json_array "$REALITY_SERVER_NAMES")
 
 envsubst < /templates/traefik/tcp.yml.template > /etc/traefik/dynamic/tcp.yml
 
