@@ -6,7 +6,8 @@ from pathlib import Path
 
 TEMPLATES = Path("/templates")
 OUTPUTS = {
-    "xray": Path("/etc/xray"),
+    "xray_reality": Path("/etc/xray-reality"),
+    "xray_vmess": Path("/etc/xray-vmess"),
     "traefik": Path("/etc/traefik/static"),
     "traefik_dynamic": Path("/etc/traefik/dynamic"),
 }
@@ -88,10 +89,16 @@ def main():
     }
 
     print("Generating xray configs...")
-    for name in ("reality.json", "vmess.json"):
-        tmpl = TEMPLATES / "xray" / f"{name}.template"
-        if tmpl.exists():
-            render_template(tmpl, OUTPUTS["xray"] / name, extra=extra)
+    render_template(
+        TEMPLATES / "xray" / "reality.json.template",
+        OUTPUTS["xray_reality"] / "config.json",
+        extra=extra,
+    )
+    render_template(
+        TEMPLATES / "xray" / "vmess.json.template",
+        OUTPUTS["xray_vmess"] / "config.json",
+        extra=extra,
+    )
 
     print("Generating Traefik configs...")
     render_template(
