@@ -16,15 +16,27 @@ services:
       - ./data/traefik:/data
     environment:
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
+      - REALITY_SERVER_NAMES=${REALITY_SERVER_NAMES}
+      - VMESS_SERVER_NAMES=${VMESS_SERVER_NAMES}
     networks:
       - cattiva
 
-  xray:
+  xray-reality:
     image: ghcr.io/xtls/xray-core:latest
-    container_name: xray
+    container_name: xray-reality
     restart: always
     volumes:
-      - ./xray/config.json:/etc/xray/config.json:ro
+      - ./xray/reality.json:/etc/xray/config.json:ro
+    networks:
+      - cattiva
+
+  xray-vmess:
+    image: ghcr.io/xtls/xray-core:latest
+    container_name: xray-vmess
+    restart: always
+    volumes:
+      - ./xray/vmess.json:/etc/xray/config.json:ro
+      - ./data/certs:/etc/xray/certs:ro
     networks:
       - cattiva
 

@@ -1,0 +1,25 @@
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [{
+    "port": 4443,
+    "protocol": "vmess",
+    "settings": {
+      "clients": [{"id": "${VMESS_UUID}", "level": 1, "alterId": 0}]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "tls",
+      "tlsSettings": {
+        "certificates": [{
+          "certificateFile": "/etc/xray/certs/cert.pem",
+          "keyFile": "/etc/xray/certs/key.pem"
+        }]
+      },
+      "wsSettings": {
+        "path": "${VMESS_WS_PATH}",
+        "headers": {}
+      }
+    }
+  }],
+  "outbounds": [{"protocol": "freedom", "tag": "direct"}]
+}
