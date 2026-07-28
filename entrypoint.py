@@ -99,12 +99,11 @@ def main():
         OUTPUTS["traefik"] / "traefik.yml",
     )
 
-    # Build dynamic config with computed values
-    render_template(
-        TEMPLATES / "traefik" / "tcp.yml.template",
-        OUTPUTS["traefik_dynamic"] / "tcp.yml",
-        extra=extra,
-    )
+    # Build dynamic configs with computed values
+    for name in ("tcp-reality.yml", "http.yml"):
+        src = TEMPLATES / "traefik" / "dynamic" / f"{name}.template"
+        if src.exists():
+            render_template(src, OUTPUTS["traefik_dynamic"] / name, extra=extra)
 
     print("Done.")
 

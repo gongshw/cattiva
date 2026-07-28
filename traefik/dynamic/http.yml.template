@@ -22,9 +22,9 @@ http:
     xray-vmess:
       loadBalancer:
         servers:
-          - address: "xray-vmess:4443"
+          - url: "http://xray-vmess:4443"
 
     static-server:
       loadBalancer:
         servers:
-          - address: "static:80"
+          - url: "http://static:80"
