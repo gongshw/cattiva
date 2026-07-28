@@ -50,7 +50,7 @@ services:
     container_name: xray-reality
     restart: always
     volumes:
-      - xray-configs:/etc/xray:ro
+      - xray-configs:/usr/local/etc/xray:ro
     depends_on:
       config-gen:
         condition: service_completed_successfully
@@ -62,7 +62,7 @@ services:
     container_name: xray-vmess
     restart: always
     volumes:
-      - xray-configs:/etc/xray:ro
+      - xray-configs:/usr/local/etc/xray:ro
     depends_on:
       config-gen:
         condition: service_completed_successfully
