@@ -1,10 +1,5 @@
 # Environment (contains secrets)
 .env
 
-# Generated configs (from templates + .env)
-xray/reality.json
-xray/vmess.json
-traefik/dynamic/tcp.yml
-
 # Runtime data
 data/

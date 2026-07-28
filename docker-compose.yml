@@ -1,4 +1,26 @@
 services:
+  config-gen:
+    image: alpine:latest
+    container_name: cattiva-config-gen
+    volumes:
+      - xray-configs:/etc/xray
+      - traefik-dynamic:/etc/traefik/dynamic
+      - ./xray:/templates/xray:ro
+      - ./traefik/dynamic/tcp.yml.template:/templates/traefik/tcp.yml.template:ro
+      - ./data/certs:/certs
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN:?err}
+      - VLESS_UUID=${VLESS_UUID:?err}
+      - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY:?err}
+      - REALITY_DEST=${REALITY_DEST:-www.apple.com:443}
+      - REALITY_SERVER_NAMES=${REALITY_SERVER_NAMES:-www.apple.com, www.icloud.com}
+      - REALITY_SHORT_ID=${REALITY_SHORT_ID:-6ba85179e30d4fc2}
+      - VMESS_UUID=${VMESS_UUID:?err}
+      - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
+      - VMESS_SERVER_NAMES=${VMESS_SERVER_NAMES}
+    command: ["sh", "/entrypoint.sh"]
+
   traefik:
     image: traefik:latest
     container_name: traefik
@@ -11,13 +33,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-dynamic:/etc/traefik/dynamic
       - ./data/acme:/acme
       - ./data/traefik:/data
     environment:
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
-      - REALITY_SERVER_NAMES=${REALITY_SERVER_NAMES}
-      - VMESS_SERVER_NAMES=${VMESS_SERVER_NAMES}
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
     networks:
       - cattiva
 
@@ -26,7 +49,10 @@ services:
     container_name: xray-reality
     restart: always
     volumes:
-      - ./xray/reality.json:/etc/xray/config.json:ro
+      - xray-configs:/etc/xray:ro
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
     networks:
       - cattiva
 
@@ -35,11 +61,18 @@ services:
     container_name: xray-vmess
     restart: always
     volumes:
-      - ./xray/vmess.json:/etc/xray/config.json:ro
+      - xray-configs:/etc/xray:ro
       - ./data/certs:/etc/xray/certs:ro
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
     networks:
       - cattiva
 
 networks:
   cattiva:
     driver: bridge
+
+volumes:
+  xray-configs:
+  traefik-dynamic:
