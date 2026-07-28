@@ -70,6 +70,15 @@ services:
     networks:
       - cattiva
 
+  static:
+    image: nginx:alpine
+    container_name: cattiva-static
+    restart: always
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+    networks:
+      - cattiva
+
 networks:
   cattiva:
     driver: bridge

@@ -18,14 +18,22 @@ tcp:
           - address: xray-reality:4433
 
 
-# HTTP routing - TLS termination + WS proxy for VMess
+# HTTP routing - VMess WS proxy + static site
 http:
   routers:
-    vmess:
-      rule: "${VMESS_HTTP_RULE}"
+    vmess-ws:
+      rule: "${VMESS_HTTP_RULE} && PathPrefix(\`${VMESS_WS_PATH}\`)"
       entryPoints:
         - websecure
       service: xray-vmess
+      tls:
+        certResolver: cloudflare
+
+    static-site:
+      rule: "${VMESS_HTTP_RULE}"
+      entryPoints:
+        - websecure
+      service: static-server
       tls:
         certResolver: cloudflare
 
@@ -34,3 +42,8 @@ http:
       loadBalancer:
         servers:
           - address: xray-vmess:4443
+
+    static-server:
+      loadBalancer:
+        servers:
+          - address: static:80
