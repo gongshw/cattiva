@@ -1,9 +1,20 @@
 # HTTP routing - VMess WS proxy + static site
 
+{%- macro host_rule(domains) -%}
+{%- set ns = namespace(parts=[]) -%}
+{%- for d in domains.replace(',', ' ').split() -%}
+{%- set d = d.strip() -%}
+{%- if d -%}
+{%- set ns.parts = ns.parts + ['Host(`' ~ d ~ '`)'] -%}
+{%- endif -%}
+{%- endfor -%}
+{{ ns.parts | join(' || ') }}
+{%- endmacro -%}
+
 http:
   routers:
     vmess-ws:
-      rule: '{{ env.SITE_DOMAIN | host_rule }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
+      rule: '{{ host_rule(env.SITE_DOMAIN) }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure
       service: xray-vmess
@@ -11,7 +22,7 @@ http:
         certResolver: cloudflare
 
     static-site:
-      rule: '{{ env.SITE_DOMAIN | host_rule }}'
+      rule: '{{ host_rule(env.SITE_DOMAIN) }}'
       entryPoints:
         - websecure
       service: static-server
