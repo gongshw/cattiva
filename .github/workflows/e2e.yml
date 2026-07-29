@@ -46,8 +46,13 @@ jobs:
 
       - name: Test config-gen
         run: |
-          docker compose ps --filter "name=config-gen" --format "{{.Status}}" | grep -q "Exited" || { echo "config-gen not exited"; exit 1; }
-          echo "✅ config-gen completed"
+          EXIT_CODE=$(docker inspect cattiva-config-gen --format '{{.State.ExitCode}}')
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ config-gen exited with code $EXIT_CODE"
+            docker logs cattiva-config-gen 2>&1
+            exit 1
+          fi
+          echo "✅ config-gen completed (exit 0)"
 
       - name: Test xray-reality
         run: |
