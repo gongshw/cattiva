@@ -14,7 +14,7 @@
         "show": false,
         "dest": "{{ env.REALITY_SERVER_NAME }}:443",
         "xver": 0,
-        "serverNames": {{ env.REALITY_SERVER_NAME | json_array }},
+        "serverNames": ["{{ env.REALITY_SERVER_NAME }}"],
         "privateKey": "{{ env.REALITY_PRIVATE_KEY }}",
         "shortIds": ["{{ env.REALITY_SHORT_ID }}"]
       }

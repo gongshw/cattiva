@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Generate configs from Jinja2 templates."""
 
-import json
 import os
 import subprocess
 import sys
@@ -28,23 +27,12 @@ REQUIRED = [
     "VMESS_UUID", "VMESS_WS_PATH",
 ]
 
-# ── Jinja2 filters ───────────────────────────────────────────
 
 def host_rule(domains: str) -> str:
     """Build Host(`a.com`) || Host(`b.com`) from comma/space list."""
     parts = [f"Host(`{d.strip()}`)" for d in domains.replace(",", " ").split() if d.strip()]
     return " || ".join(parts)
 
-def host_sni(domain: str) -> str:
-    """Build HostSNI(`domain`) for a single domain."""
-    return f"HostSNI(`{domain.strip()}`)"
-
-def to_json_array(val: str) -> str:
-    """Wrap a single value in a JSON array."""
-    return json.dumps([val.strip()])
-
-
-# ── template rendering ───────────────────────────────────────
 
 def render(name: str, dst: Path) -> None:
     env = Environment(
@@ -53,16 +41,11 @@ def render(name: str, dst: Path) -> None:
         lstrip_blocks=True,
     )
     env.filters["host_rule"] = host_rule
-    env.filters["host_sni"] = host_sni
-    env.filters["json_array"] = to_json_array
-
     tmpl = env.get_template(name)
     result = tmpl.render(env=dict(os.environ))
     dst.write_text(result)
     print(f"  → {dst.name}")
 
-
-# ── main ──────────────────────────────────────────────────────
 
 def main():
     missing = [k for k in REQUIRED if not os.environ.get(k)]
