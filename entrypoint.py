@@ -64,16 +64,6 @@ def build_host(domains: str) -> str:
     return " || ".join(parts)
 
 
-def build_json_array(domains: str) -> str:
-    """Build JSON array from comma/space-separated list."""
-    items = []
-    for d in domains.replace(",", " ").split():
-        d = d.strip()
-        if d:
-            items.append(d)
-    return json.dumps(items)
-
-
 def main():
     # Validate required vars
     for key in REQUIRED:
@@ -84,7 +74,7 @@ def main():
     site_domain = env("SITE_DOMAIN")
     extra = {
         "REALITY_DEST": f"{reality_name}:443",
-        "REALITY_SERVER_NAMES_JSON": build_json_array(reality_name),
+        "REALITY_SERVER_NAMES_JSON": json.dumps([reality_name]),
         "REALITY_SNI": build_sni(reality_name),
         "VMESS_HTTP_RULE": build_host(site_domain),
     }
