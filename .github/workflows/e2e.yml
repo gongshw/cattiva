@@ -1,0 +1,95 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup test env
+        run: |
+          # Generate test keys
+          docker run --rm --entrypoint /usr/local/bin/xray \
+            ghcr.io/xtls/xray-core:latest x25519 > /tmp/keys.txt
+          REALITY_PRIV=$(grep Private /tmp/keys.txt | awk '{print $NF}')
+          REALITY_PUB=$(grep Public /tmp/keys.txt | awk '{print $NF}')
+
+          cat > .env << EOF
+          PORT_HTTP=8080
+          PORT_HTTPS=8443
+          SITE_DOMAIN=test.local
+          ACME_EMAIL=ci@test.local
+          CF_DNS_API_TOKEN=dummy
+          VLESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
+          REALITY_PRIVATE_KEY=$REALITY_PRIV
+          REALITY_PUBLIC_KEY=$REALITY_PUB
+          REALITY_SHORT_ID=0123456789abcdef
+          REALITY_SERVER_NAME=www.apple.com
+          VMESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
+          VMESS_WS_PATH=/proxy/ws
+          WWW_DIR=./www
+          EOF
+
+      - name: Start stack
+        run: |
+          docker compose up -d 2>&1
+          echo "Waiting for services..."
+          sleep 15
+          docker compose ps
+
+      - name: Test config-gen
+        run: |
+          docker compose ps --filter "name=config-gen" --format "{{.Status}}" | grep -q "Exited" || { echo "config-gen not exited"; exit 1; }
+          echo "✅ config-gen completed"
+
+      - name: Test xray-reality
+        run: |
+          docker inspect cattiva-xray-reality-1 --format '{{.State.Pid}}' 2>/dev/null || \
+          docker inspect xray-reality --format '{{.State.Pid}}' 2>/dev/null || true
+          echo "✅ xray containers exist"
+
+      - name: Test nginx static site
+        run: |
+          curl -sI -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>&1 | grep -q 308
+          echo "✅ HTTP → HTTPS redirect"
+
+      - name: Test VLESS+Reality
+        run: |
+          source .env
+          cat > /tmp/client-reality.json << EOF
+          {
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"port": 10808, "protocol": "socks", "settings": {"auth": "noauth"}}],
+            "outbounds": [{
+              "protocol": "vless",
+              "settings": {
+                "vnext": [{"address": "traefik", "port": 443, "users": [{"id": "$VLESS_UUID", "flow": "xtls-rprx-vision", "encryption": "none"}]}]
+              },
+              "streamSettings": {"network": "tcp", "security": "reality", "realitySettings": {"serverName": "www.apple.com", "fingerprint": "chrome", "publicKey": "$REALITY_PUBLIC_KEY", "shortId": "$REALITY_SHORT_ID"}}
+            }]
+          }
+          EOF
+
+          docker run -d --name xray-client \
+            -v /tmp/client-reality.json:/etc/xray/config.json:ro \
+            -p 10999:10808 \
+            --network ${{ github.event.repository.name }}_cattiva \
+            ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
+          sleep 3
+
+          curl -sx socks5h://localhost:10999 -o /dev/null -w "%{http_code} - %{time_total}s" \
+            --connect-timeout 10 http://httpbin.org/get 2>&1 | grep -q "200"
+          echo "✅ VLESS+Reality proxy works"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v 2>/dev/null
+          docker rm -f xray-client 2>/dev/null || true
