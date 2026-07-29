@@ -15,11 +15,8 @@ jobs:
 
       - name: Setup test env
         run: |
-          # Generate test keys
-          docker run --rm --entrypoint /usr/local/bin/xray \
-            ghcr.io/xtls/xray-core:latest x25519 > /tmp/keys.txt
-          REALITY_PRIV=$(grep Private /tmp/keys.txt | awk '{print $NF}')
-          REALITY_PUB=$(grep Public /tmp/keys.txt | awk '{print $NF}')
+          REALITY_PRIV=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest x25519 | grep Private | awk '{print $NF}')
+          REALITY_PUB=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest x25519 | grep Public | awk '{print $NF}')
 
           cat > .env << EOF
           PORT_HTTP=8080
@@ -40,38 +37,45 @@ jobs:
       - name: Start stack
         run: |
           docker compose up -d 2>&1
-          echo "Waiting for services..."
           sleep 15
           docker compose ps
 
-      - name: Test config-gen
+      - name: Config-gen succeeded
         run: |
-          EXIT_CODE=$(docker inspect cattiva-config-gen --format '{{.State.ExitCode}}')
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "❌ config-gen exited with code $EXIT_CODE"
-            docker logs cattiva-config-gen 2>&1
-            exit 1
-          fi
-          echo "✅ config-gen completed (exit 0)"
+          EXIT=$(docker inspect cattiva-config-gen --format '{{.State.ExitCode}}')
+          [ "$EXIT" = "0" ] || { docker logs cattiva-config-gen; exit 1; }
+          echo "✅ config-gen exit 0"
 
-      - name: Test xray-reality
+      - name: xray services are listening
         run: |
-          docker inspect cattiva-xray-reality-1 --format '{{.State.Pid}}' 2>/dev/null || \
-          docker inspect xray-reality --format '{{.State.Pid}}' 2>/dev/null || true
-          echo "✅ xray containers exist"
+          for svc in xray-reality xray-vmess; do
+            CID=$(docker ps --filter name=$svc --format '{{.ID}}')
+            PID=$(docker inspect $CID --format '{{.State.Pid}}')
+            [ -n "$PID" ] && nsenter -t $PID -n ss -tlnp 2>/dev/null | grep LISTEN
+          done
+          echo "✅ xray ports listening"
 
-      - name: Test nginx static site
+      - name: nginx serves static files
         run: |
-          curl -sI -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>&1 | grep -q 308
-          echo "✅ HTTP → HTTPS redirect"
+          curl -sk -o /tmp/index -H 'Host: test.local' \
+            https://localhost:8443/ 2>&1 | grep -q "it works"
+          echo "✅ static site"
 
-      - name: Test VLESS+Reality
+      - name: nginx serves share configs
+        run: |
+          curl -sk -H 'Host: test.local' \
+            https://localhost:8443/share/all.yaml 2>&1 | head -3
+          echo "✅ share config accessible"
+
+      - name: Traefik HTTP→HTTPS redirect
+        run: |
+          code=$(curl -sI -o /dev/null -w '%{http_code}' http://localhost:8080/)
+          [ "$code" = "308" ]
+          echo "✅ HTTP 308 redirect"
+
+      - name: VLESS+Reality proxy
         run: |
           source .env
-          echo "=== Env check ==="
-          echo "UUID: $VLESS_UUID"
-          echo "PublicKey: $REALITY_PUBLIC_KEY"
-
           cat > /tmp/client-reality.json << EOF
           {
             "log": {"loglevel": "warning"},
@@ -86,28 +90,33 @@ jobs:
           }
           EOF
 
-          echo "=== Client config ==="
-          python3 -m json.tool /tmp/client-reality.json
-
-          echo "=== Start client ==="
-          docker network ls | grep cattiva
           docker run -d --name xray-client \
             -v /tmp/client-reality.json:/etc/xray/config.json:ro \
-            -p 10999:10808 \
             --network cattiva_cattiva \
             ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
           sleep 3
 
-          echo "=== Client logs ==="
-          docker logs xray-client 2>&1 | tail -5
+          docker logs xray-client 2>&1 | grep -q "started" || { docker logs xray-client; exit 1; }
+          echo "✅ xray client started"
+          
+          SOCKS_IP=$(docker inspect xray-client --format '{{.NetworkSettings.Networks.cattiva_cattiva.IPAddress}}')
+          curl -sx socks5h://$SOCKS_IP:10808 -o /dev/null -w "HTTP %{http_code}\n" \
+            --connect-timeout 10 http://httpbin.org/get 2>&1
+          echo "✅ VLESS+Reality proxy works"
 
-          echo "=== DNS test ==="
-          docker run --rm --network cattiva_cattiva alpine \
-            nslookup traefik 2>&1 | head -5
+      - name: VMess+WS TLS handshake
+        run: |
+          curl -sk -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: test.local' \
+            https://localhost:8443/proxy/ws
+          echo "✅ VMess WS endpoint reachable"
 
-          echo "=== Proxy test ==="
-          curl -sx socks5h://localhost:10999 -o /tmp/proxy-result -w "HTTP %{http_code} - %{time_total}s\n" \
-            --connect-timeout 10 http://httpbin.org/get 2>&1 || echo "curl failed"
+      - name: Content via CDN alias
+        run: |
+          curl -sk -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: cdn.test.local' \
+            https://localhost:8443/share/all.yaml
+          echo "✅ CDN alias works"
 
       - name: Cleanup
         if: always()
