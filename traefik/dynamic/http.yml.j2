@@ -1,19 +1,9 @@
-{%- macro host_rule(domains) -%}
-{%- set ns = namespace(parts=[]) -%}
-{%- for d in domains.replace(',', ' ').split() -%}
-{%- set d = d.strip() -%}
-{%- if d -%}
-{%- set ns.parts = ns.parts + ['Host(`' ~ d ~ '`)'] -%}
-{%- endif -%}
-{%- endfor -%}
-{{ ns.parts | join(' || ') }}
-{%- endmacro -%}
-
 # HTTP routing - VMess WS proxy + static site
+
 http:
   routers:
     vmess-ws:
-      rule: '{{ host_rule(env.SITE_DOMAIN) }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
+      rule: '{{ env.SITE_DOMAIN | host_rule }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure
       service: xray-vmess
@@ -21,7 +11,7 @@ http:
         certResolver: cloudflare
 
     static-site:
-      rule: '{{ host_rule(env.SITE_DOMAIN) }}'
+      rule: '{{ env.SITE_DOMAIN | host_rule }}'
       entryPoints:
         - websecure
       service: static-server
@@ -31,14 +21,14 @@ http:
 {% if env.SITE_ALIASES %}
 {% for alias in env.SITE_ALIASES.split(',') %}
 {% set a = alias.strip() %}
-    {{ a }}:
+    cdn-{{ a }}:
       rule: 'Host(`{{ a }}`)'
       entryPoints:
         - websecure
       service: static-server
       tls: {}
 
-    ws-{{ a }}:
+    cdn-ws-{{ a }}:
       rule: 'Host(`{{ a }}`) && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure

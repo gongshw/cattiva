@@ -28,12 +28,19 @@ REQUIRED = [
 ]
 
 
+def host_rule(domains: str) -> str:
+    """Build Host(`a.com`) || Host(`b.com`) from comma/space list."""
+    parts = [f"Host(`{d.strip()}`)" for d in domains.replace(",", " ").split() if d.strip()]
+    return " || ".join(parts)
+
+
 def render(name: str, dst: Path) -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES)),
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["host_rule"] = host_rule
     tmpl = env.get_template(name)
     result = tmpl.render(env=dict(os.environ))
     dst.write_text(result)
