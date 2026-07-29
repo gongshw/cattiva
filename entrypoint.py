@@ -41,6 +41,7 @@ def render(name: str, dst: Path) -> None:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["host_rule"] = host_rule
     tmpl = env.get_template(name)
     result = tmpl.render(env=dict(os.environ))
     dst.parent.mkdir(parents=True, exist_ok=True)
