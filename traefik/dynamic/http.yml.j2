@@ -1,5 +1,3 @@
-# HTTP routing - VMess WS proxy + static site
-
 {%- macro host_rule(domains) -%}
 {%- set ns = namespace(parts=[]) -%}
 {%- for d in domains.replace(',', ' ').split() -%}
@@ -11,6 +9,7 @@
 {{ ns.parts | join(' || ') }}
 {%- endmacro -%}
 
+# HTTP routing - VMess WS proxy + static site
 http:
   routers:
     vmess-ws:
@@ -32,14 +31,14 @@ http:
 {% if env.SITE_ALIASES %}
 {% for alias in env.SITE_ALIASES.split(',') %}
 {% set a = alias.strip() %}
-    cdn-{{ a }}:
+    {{ a }}:
       rule: 'Host(`{{ a }}`)'
       entryPoints:
         - websecure
       service: static-server
       tls: {}
 
-    cdn-ws-{{ a }}:
+    ws-{{ a }}:
       rule: 'Host(`{{ a }}`) && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure
