@@ -20,6 +20,7 @@ services:
       - REALITY_SHORT_ID=${REALITY_SHORT_ID:?err}
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
+      - SITE_ALIASES=${SITE_ALIASES:-}
     command: ["python3", "/entrypoint.py"]
 
   traefik:
