@@ -72,7 +72,7 @@ def main():
     # Compute derived values
     reality_name = env("REALITY_SERVER_NAME", "www.apple.com")
     site_domain = env("SITE_DOMAIN")
-    site_aliases = env("SITE_ALIASES", "")
+    site_aliases = os.environ.get("SITE_ALIASES", "")
 
     # Build alias routers (routed but no ACME — for Cloudflare-proxied domains)
     alias_routers = ""
