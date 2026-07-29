@@ -95,9 +95,9 @@ jobs:
           docker logs xray-client 2>&1 | grep -q "started" || { docker logs xray-client; exit 1; }
           echo "✅ xray client started"
 
-          curl -sx socks5h://localhost:10999 -o /dev/null -w "HTTP %{http_code}\n" \
-            --connect-timeout 10 http://httpbin.org/get 2>&1
-          echo "✅ VLESS+Reality proxy works"
+          echo "=== SOCKS debug ==="
+          curl -svx socks5h://localhost:10999 -o /dev/null \
+            --connect-timeout 10 http://httpbin.org/get 2>&1 | head -15
 
       - name: VMess+WS TLS handshake
         run: |
