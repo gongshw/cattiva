@@ -16,8 +16,7 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:?err}
       - VLESS_UUID=${VLESS_UUID:?err}
       - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY:?err}
-      - REALITY_DEST=${REALITY_DEST:-www.apple.com:443}
-      - REALITY_SERVER_NAMES=${REALITY_SERVER_NAMES:-www.apple.com, www.icloud.com}
+      - REALITY_SERVER_NAME=${REALITY_SERVER_NAME:-www.apple.com}
       - REALITY_SHORT_ID=${REALITY_SHORT_ID:?err}
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}

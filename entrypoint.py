@@ -14,7 +14,7 @@ OUTPUTS = {
 
 REQUIRED = [
     "SITE_DOMAIN", "VLESS_UUID", "REALITY_PRIVATE_KEY",
-    "REALITY_DEST", "REALITY_SERVER_NAMES", "REALITY_SHORT_ID",
+    "REALITY_SERVER_NAME", "REALITY_SHORT_ID",
     "VMESS_UUID", "VMESS_WS_PATH",
 ]
 
@@ -80,11 +80,12 @@ def main():
         env(key)
 
     # Compute derived values
-    reality_names = env("REALITY_SERVER_NAMES")
+    reality_name = env("REALITY_SERVER_NAME", "www.apple.com")
     site_domain = env("SITE_DOMAIN")
     extra = {
-        "REALITY_SERVER_NAMES_JSON": build_json_array(reality_names),
-        "REALITY_SNI": build_sni(reality_names),
+        "REALITY_DEST": f"{reality_name}:443",
+        "REALITY_SERVER_NAMES_JSON": build_json_array(reality_name),
+        "REALITY_SNI": build_sni(reality_name),
         "VMESS_HTTP_RULE": build_host(site_domain),
     }
 
