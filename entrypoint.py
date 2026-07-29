@@ -61,6 +61,7 @@ def main():
     render("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml")
     render("traefik/dynamic/tcp-reality.yml.j2", OUTPUTS["traefik_dynamic"] / "tcp-reality.yml")
     render("traefik/dynamic/http.yml.j2", OUTPUTS["traefik_dynamic"] / "http.yml")
+    render("traefik/dynamic/tls.yml.j2", OUTPUTS["traefik_dynamic"] / "tls.yml")
 
     print("Done.")
 
