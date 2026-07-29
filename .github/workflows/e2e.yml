@@ -87,15 +87,15 @@ jobs:
 
           docker run -d --name xray-client \
             -v /tmp/client-reality.json:/etc/xray/config.json:ro \
+            -p 10999:10808 \
             --network cattiva_cattiva \
             ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
           sleep 3
 
           docker logs xray-client 2>&1 | grep -q "started" || { docker logs xray-client; exit 1; }
           echo "✅ xray client started"
-          
-          SOCKS_IP=$(docker inspect xray-client --format '{{.NetworkSettings.Networks.cattiva_cattiva.IPAddress}}')
-          curl -sx socks5h://$SOCKS_IP:10808 -o /dev/null -w "HTTP %{http_code}\n" \
+
+          curl -sx socks5h://localhost:10999 -o /dev/null -w "HTTP %{http_code}\n" \
             --connect-timeout 10 http://httpbin.org/get 2>&1
           echo "✅ VLESS+Reality proxy works"
 
