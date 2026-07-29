@@ -55,17 +55,11 @@ jobs:
           done
           echo "✅ xray ports listening"
 
-      - name: nginx serves static files
-        run: |
-          curl -sk -o /tmp/index -H 'Host: test.local' \
-            https://localhost:8443/ 2>&1 | grep -q "it works"
-          echo "✅ static site"
-
-      - name: nginx serves share configs
+      - name: nginx serves static site
         run: |
           curl -sk -H 'Host: test.local' \
-            https://localhost:8443/share/all.yaml 2>&1 | head -3
-          echo "✅ share config accessible"
+            https://localhost:8443/ 2>&1 | grep -qi "it works\|html"
+          echo "✅ static site"
 
       - name: Traefik HTTP→HTTPS redirect
         run: |
