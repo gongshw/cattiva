@@ -72,11 +72,34 @@ def main():
     # Compute derived values
     reality_name = env("REALITY_SERVER_NAME", "www.apple.com")
     site_domain = env("SITE_DOMAIN")
+    site_aliases = env("SITE_ALIASES", "")
+
+    # Build alias routers (routed but no ACME — for Cloudflare-proxied domains)
+    alias_routers = ""
+    if site_aliases:
+        alias_rule = build_host(site_aliases)
+        alias_routers = f"""
+    cdn-static:
+      rule: '{alias_rule}'
+      entryPoints:
+        - websecure
+      service: static-server
+      tls: {{}}
+
+    cdn-ws:
+      rule: '{alias_rule} && PathPrefix(`/{env("VMESS_WS_PATH")}`)'
+      entryPoints:
+        - websecure
+      service: xray-vmess
+      tls: {{}}
+"""
+
     extra = {
         "REALITY_DEST": f"{reality_name}:443",
         "REALITY_SERVER_NAMES_JSON": json.dumps([reality_name]),
         "REALITY_SNI": build_sni(reality_name),
         "VMESS_HTTP_RULE": build_host(site_domain),
+        "SITE_ALIAS_ROUTERS": alias_routers,
     }
 
     print("Generating xray configs...")

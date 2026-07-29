@@ -17,7 +17,7 @@ http:
       service: static-server
       tls:
         certResolver: cloudflare
-
+${SITE_ALIAS_ROUTERS}
   services:
     xray-vmess:
       loadBalancer:
