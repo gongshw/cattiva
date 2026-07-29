@@ -87,7 +87,7 @@ def main():
       tls: {{}}
 
     cdn-ws:
-      rule: '{alias_rule} && PathPrefix(`/{env("VMESS_WS_PATH")}`)'
+      rule: '{alias_rule} && PathPrefix(`{env("VMESS_WS_PATH")}`)'
       entryPoints:
         - websecure
       service: xray-vmess
