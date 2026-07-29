@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-configs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install jinja2 pyyaml
+
+      - name: Generate configs with test values
+        run: python3 entrypoint.py
+        env:
+          CATTIVA_OUTPUT_DIR: /tmp/cattiva-test
+          SITE_DOMAIN: test.example.com
+          ACME_EMAIL: test@test.example.com
+          CF_DNS_API_TOKEN: dummy-token
+          VLESS_UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+          REALITY_PRIVATE_KEY: ci-test-private-key
+          REALITY_PUBLIC_KEY: ci-test-public-key
+          REALITY_SHORT_ID: 0123456789abcdef
+          REALITY_SERVER_NAME: www.apple.com
+          VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
+          VMESS_WS_PATH: /proxy/ws
+          SITE_ALIASES: cdn.test.example.com
+
+      - name: Validate generated configs
+        run: python3 ci/validate.py
+        env:
+          CATTIVA_OUTPUT_DIR: /tmp/cattiva-test

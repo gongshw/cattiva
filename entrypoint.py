@@ -14,11 +14,12 @@ subprocess.run(
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
 TEMPLATES = Path("/templates")
+OUTPUT_BASE = Path(os.environ.get("CATTIVA_OUTPUT_DIR", "/"))
 OUTPUTS = {
-    "xray_reality": Path("/etc/xray-reality"),
-    "xray_vmess": Path("/etc/xray-vmess"),
-    "traefik": Path("/etc/traefik/static"),
-    "traefik_dynamic": Path("/etc/traefik/dynamic"),
+    "xray_reality": OUTPUT_BASE / "etc/xray-reality",
+    "xray_vmess": OUTPUT_BASE / "etc/xray-vmess",
+    "traefik": OUTPUT_BASE / "etc/traefik/static",
+    "traefik_dynamic": OUTPUT_BASE / "etc/traefik/dynamic",
 }
 
 REQUIRED = [
