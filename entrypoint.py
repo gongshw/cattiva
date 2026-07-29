@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
-import os
+"""Generate configs from Jinja2 templates."""
+
 import json
-import shutil
+import os
+import subprocess
+import sys
 from pathlib import Path
+
+# Install Jinja2 at runtime
+subprocess.run(
+    [sys.executable, "-m", "pip", "install", "jinja2", "-q"],
+    check=True, capture_output=True,
+)
+from jinja2 import Environment, BaseLoader, FileSystemLoader  # noqa: E402
 
 TEMPLATES = Path("/templates")
 OUTPUTS = {
@@ -18,113 +28,74 @@ REQUIRED = [
     "VMESS_UUID", "VMESS_WS_PATH",
 ]
 
+# ── helpers exposed to templates ──────────────────────────────
 
-def env(key: str, default: str = "") -> str:
-    val = os.environ.get(key)
-    if val is None or val == "":
-        if default:
-            return default
-        print(f"ERROR: {key} is required", file=__import__('sys').stderr)
-        __import__('sys').exit(1)
-    return val if val is not None else ""
+def build_sni(domain: str) -> str:
+    return f"HostSNI(`{domain.strip()}`)"
+
+def build_host(domains: str) -> str:
+    parts = [f"Host(`{d.strip()}`)" for d in domains.replace(",", " ").split() if d.strip()]
+    return " || ".join(parts)
+
+def split_list(val: str) -> list[str]:
+    return [s.strip() for s in val.replace(",", " ").split() if s.strip()]
+
+# ── template env ──────────────────────────────────────────────
+
+def make_env(**globals) -> Environment:
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATES)),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    env.filters.update(globals.get("filters", {}))
+    env.globals.update(globals)
+    return env
 
 
-def render_template(src: Path, dst: Path, extra: dict | None = None):
-    """Render a template file, replacing ${VAR} with env vars."""
-    text = src.read_text()
-    # Build substitution dict from env + extra
-    subs = dict(os.environ)
-    if extra:
-        subs.update(extra)
-
-    # Use string.Template for safe substitution
-    from string import Template
-    result = Template(text).safe_substitute(subs)
+def render_j2(path: str, dst: Path, ctx: dict) -> None:
+    """Render a Jinja2 template relative to TEMPLATES."""
+    tmpl = make_env(**ctx).get_template(path)
+    result = tmpl.render(**ctx)
     dst.write_text(result)
     print(f"  → {dst.name}")
 
 
-def build_sni(domains: str) -> str:
-    """Build HostSNI(...) || HostSNI(...) expression."""
-    parts = []
-    for d in domains.replace(",", " ").split():
-        d = d.strip()
-        if d:
-            parts.append(f"HostSNI(`{d}`)")
-    return " || ".join(parts)
-
-
-def build_host(domains: str) -> str:
-    """Build Host(...) || Host(...) expression."""
-    parts = []
-    for d in domains.replace(",", " ").split():
-        d = d.strip()
-        if d:
-            parts.append(f"Host(`{d}`)")
-    return " || ".join(parts)
-
+# ── main ──────────────────────────────────────────────────────
 
 def main():
     # Validate required vars
-    for key in REQUIRED:
-        env(key)
+    missing = [k for k in REQUIRED if not os.environ.get(k)]
+    if missing:
+        print(f"ERROR: missing required vars: {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
 
-    # Compute derived values
-    reality_name = env("REALITY_SERVER_NAME", "www.apple.com")
-    site_domain = env("SITE_DOMAIN")
-    site_aliases = os.environ.get("SITE_ALIASES", "")
+    # Env dict for templates
+    env = dict(os.environ)
 
-    # Build alias routers (routed but no ACME — for Cloudflare-proxied domains)
-    alias_routers = ""
-    if site_aliases:
-        alias_rule = build_host(site_aliases)
-        alias_routers = f"""
-    cdn-static:
-      rule: '{alias_rule}'
-      entryPoints:
-        - websecure
-      service: static-server
-      tls: {{}}
+    # Computed values
+    reality_name = env.get("REALITY_SERVER_NAME", "www.apple.com")
+    env["REALITY_DEST"] = f"{reality_name}:443"
+    env["REALITY_SERVER_NAMES_JSON"] = json.dumps([reality_name])
+    env["REALITY_SNI"] = build_sni(reality_name)
+    env["VMESS_HTTP_RULE"] = build_host(env["SITE_DOMAIN"])
+    env["SITE_ALIASES_LIST"] = split_list(env.get("SITE_ALIASES", ""))
 
-    cdn-ws:
-      rule: '{alias_rule} && PathPrefix(`{env("VMESS_WS_PATH")}`)'
-      entryPoints:
-        - websecure
-      service: xray-vmess
-      tls: {{}}
-"""
-
-    extra = {
-        "REALITY_DEST": f"{reality_name}:443",
-        "REALITY_SERVER_NAMES_JSON": json.dumps([reality_name]),
-        "REALITY_SNI": build_sni(reality_name),
-        "VMESS_HTTP_RULE": build_host(site_domain),
-        "SITE_ALIAS_ROUTERS": alias_routers,
+    # Context for Jinja2 (filters & globals)
+    ctx = {
+        "env": env,
+        "filters": {},
+        "split_list": split_list,
     }
 
     print("Generating xray configs...")
-    render_template(
-        TEMPLATES / "xray" / "reality.json.template",
-        OUTPUTS["xray_reality"] / "config.json",
-        extra=extra,
-    )
-    render_template(
-        TEMPLATES / "xray" / "vmess.json.template",
-        OUTPUTS["xray_vmess"] / "config.json",
-        extra=extra,
-    )
+    render_j2("xray/reality.json.j2", OUTPUTS["xray_reality"] / "config.json", ctx)
+    render_j2("xray/vmess.json.j2", OUTPUTS["xray_vmess"] / "config.json", ctx)
 
     print("Generating Traefik configs...")
-    render_template(
-        TEMPLATES / "traefik" / "traefik.yml.template",
-        OUTPUTS["traefik"] / "traefik.yml",
-    )
-
-    # Build dynamic configs with computed values
-    for name in ("tcp-reality.yml", "http.yml"):
-        src = TEMPLATES / "traefik" / "dynamic" / f"{name}.template"
-        if src.exists():
-            render_template(src, OUTPUTS["traefik_dynamic"] / name, extra=extra)
+    render_j2("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml", ctx)
+    render_j2("traefik/dynamic/tcp-reality.yml.j2", OUTPUTS["traefik_dynamic"] / "tcp-reality.yml", ctx)
+    render_j2("traefik/dynamic/http.yml.j2", OUTPUTS["traefik_dynamic"] / "http.yml", ctx)
 
     print("Done.")
 

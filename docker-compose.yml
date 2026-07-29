@@ -9,7 +9,7 @@ services:
       - traefik-config:/etc/traefik/static
       - ./xray:/templates/xray:ro
       - ./traefik/dynamic:/templates/traefik/dynamic:ro
-      - ./traefik/traefik.yml.template:/templates/traefik/traefik.yml.template:ro
+      - ./traefik/traefik.yml.j2:/templates/traefik/traefik.yml.j2:ro
       - ./entrypoint.py:/entrypoint.py:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}

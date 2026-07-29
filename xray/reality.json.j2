@@ -4,7 +4,7 @@
     "port": 4433,
     "protocol": "vless",
     "settings": {
-      "clients": [{"id": "${VLESS_UUID}", "flow": "xtls-rprx-vision"}],
+      "clients": [{"id": "{{ env.VLESS_UUID }}", "flow": "xtls-rprx-vision"}],
       "decryption": "none"
     },
     "streamSettings": {
@@ -12,11 +12,11 @@
       "security": "reality",
       "realitySettings": {
         "show": false,
-        "dest": "${REALITY_DEST}",
+        "dest": "{{ env.REALITY_DEST }}",
         "xver": 0,
-        "serverNames": ${REALITY_SERVER_NAMES_JSON},
-        "privateKey": "${REALITY_PRIVATE_KEY}",
-        "shortIds": ["${REALITY_SHORT_ID}"]
+        "serverNames": {{ env.REALITY_SERVER_NAMES_JSON }},
+        "privateKey": "{{ env.REALITY_PRIVATE_KEY }}",
+        "shortIds": ["{{ env.REALITY_SHORT_ID }}"]
       }
     }
   }],

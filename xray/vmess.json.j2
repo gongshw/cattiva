@@ -4,13 +4,13 @@
     "port": 4443,
     "protocol": "vmess",
     "settings": {
-      "clients": [{"id": "${VMESS_UUID}", "level": 1, "alterId": 0}]
+      "clients": [{"id": "{{ env.VMESS_UUID }}", "level": 1, "alterId": 0}]
     },
     "streamSettings": {
       "network": "ws",
       "security": "none",
       "wsSettings": {
-        "path": "${VMESS_WS_PATH}",
+        "path": "{{ env.VMESS_WS_PATH }}",
         "headers": {}
       }
     }
