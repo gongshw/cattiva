@@ -13,12 +13,13 @@ subprocess.run(
 )
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
-TEMPLATES = Path("/templates")
+TEMPLATES = Path(os.environ.get("CATTIVA_TEMPLATES_DIR", "/templates"))
+OUTPUT_BASE = Path(os.environ.get("CATTIVA_OUTPUT_DIR", "/etc"))
 OUTPUTS = {
-    "xray_reality": Path("/etc/xray-reality"),
-    "xray_vmess": Path("/etc/xray-vmess"),
-    "traefik": Path("/etc/traefik/static"),
-    "traefik_dynamic": Path("/etc/traefik/dynamic"),
+    "xray_reality": OUTPUT_BASE / "xray-reality",
+    "xray_vmess": OUTPUT_BASE / "xray-vmess",
+    "traefik": OUTPUT_BASE / "traefik/static",
+    "traefik_dynamic": OUTPUT_BASE / "traefik/dynamic",
 }
 
 REQUIRED = [
@@ -43,6 +44,7 @@ def render(name: str, dst: Path) -> None:
     env.filters["host_rule"] = host_rule
     tmpl = env.get_template(name)
     result = tmpl.render(env=dict(os.environ))
+    dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(result)
     print(f"  → {dst.name}")
 

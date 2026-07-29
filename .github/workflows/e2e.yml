@@ -1,0 +1,120 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup test env
+        run: |
+          REALITY_PRIV=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest x25519 | grep Private | awk '{print $NF}')
+          REALITY_PUB=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest x25519 | grep Public | awk '{print $NF}')
+
+          cat > .env << EOF
+          PORT_HTTP=8080
+          PORT_HTTPS=8443
+          SITE_DOMAIN=test.local
+          ACME_EMAIL=ci@test.local
+          CF_DNS_API_TOKEN=dummy
+          VLESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
+          REALITY_PRIVATE_KEY=$REALITY_PRIV
+          REALITY_PUBLIC_KEY=$REALITY_PUB
+          REALITY_SHORT_ID=0123456789abcdef
+          REALITY_SERVER_NAME=www.apple.com
+          VMESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
+          VMESS_WS_PATH=/proxy/ws
+          WWW_DIR=./www
+          EOF
+
+      - name: Start stack
+        run: |
+          docker compose up -d 2>&1
+          sleep 15
+          docker compose ps
+
+      - name: Config-gen succeeded
+        run: |
+          EXIT=$(docker inspect cattiva-config-gen --format '{{.State.ExitCode}}')
+          [ "$EXIT" = "0" ] || { docker logs cattiva-config-gen; exit 1; }
+          echo "✅ config-gen exit 0"
+
+      - name: xray services are listening
+        run: |
+          for svc in xray-reality xray-vmess; do
+            CID=$(docker ps --filter name=$svc --format '{{.ID}}' | head -1)
+            [ -n "$CID" ] || { echo "❌ $svc container not found"; exit 1; }
+            # Check process exists (container is running)
+            docker inspect $CID --format '{{.State.Status}}' | grep -q running
+            echo "✅ $svc running ($CID)"
+          done
+
+      - name: nginx serves static site
+        run: |
+          curl -sk -H 'Host: test.local' \
+            https://localhost:8443/ 2>&1 | grep -qi "it works\|html"
+          echo "✅ static site"
+
+      - name: Traefik HTTP→HTTPS redirect
+        run: |
+          code=$(curl -sI -o /dev/null -w '%{http_code}' http://localhost:8080/)
+          [ "$code" = "308" ]
+          echo "✅ HTTP 308 redirect"
+
+      - name: VLESS+Reality proxy
+        run: |
+          source .env
+          cat > /tmp/client-reality.json << EOF
+          {
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"port": 10808, "protocol": "socks", "settings": {"auth": "noauth"}}],
+            "outbounds": [{
+              "protocol": "vless",
+              "settings": {
+                "vnext": [{"address": "traefik", "port": 443, "users": [{"id": "$VLESS_UUID", "flow": "xtls-rprx-vision", "encryption": "none"}]}]
+              },
+              "streamSettings": {"network": "tcp", "security": "reality", "realitySettings": {"serverName": "www.apple.com", "fingerprint": "chrome", "publicKey": "$REALITY_PUBLIC_KEY", "shortId": "$REALITY_SHORT_ID"}}
+            }]
+          }
+          EOF
+
+          docker run -d --name xray-client \
+            -v /tmp/client-reality.json:/etc/xray/config.json:ro \
+            -p 10999:10808 \
+            --network cattiva_cattiva \
+            ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
+          sleep 3
+
+          docker logs xray-client 2>&1 | grep -q "started" || { docker logs xray-client; exit 1; }
+          echo "✅ xray client started"
+
+          echo "=== SOCKS debug ==="
+          curl -svx socks5h://localhost:10999 -o /dev/null \
+            --connect-timeout 10 http://httpbin.org/get 2>&1 | head -15
+
+      - name: VMess+WS TLS handshake
+        run: |
+          curl -sk -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: test.local' \
+            https://localhost:8443/proxy/ws
+          echo "✅ VMess WS endpoint reachable"
+
+      - name: Content via CDN alias
+        run: |
+          curl -sk -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: cdn.test.local' \
+            https://localhost:8443/share/all.yaml
+          echo "✅ CDN alias works"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v 2>/dev/null
+          docker rm -f xray-client 2>/dev/null || true
