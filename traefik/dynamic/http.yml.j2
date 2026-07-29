@@ -3,7 +3,7 @@
 http:
   routers:
     vmess-ws:
-      rule: '{{ env.VMESS_HTTP_RULE }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
+      rule: '{{ env.SITE_DOMAIN | host_rule }} && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure
       service: xray-vmess
@@ -11,28 +11,31 @@ http:
         certResolver: cloudflare
 
     static-site:
-      rule: '{{ env.VMESS_HTTP_RULE }}'
+      rule: '{{ env.SITE_DOMAIN | host_rule }}'
       entryPoints:
         - websecure
       service: static-server
       tls:
         certResolver: cloudflare
 
-{% for alias in env.SITE_ALIASES_LIST %}
-    cdn-{{ alias }}:
-      rule: 'Host(`{{ alias }}`)'
+{% if env.SITE_ALIASES %}
+{% for alias in env.SITE_ALIASES.split(',') %}
+{% set a = alias.strip() %}
+    cdn-{{ a }}:
+      rule: 'Host(`{{ a }}`)'
       entryPoints:
         - websecure
       service: static-server
       tls: {}
 
-    cdn-ws-{{ alias }}:
-      rule: 'Host(`{{ alias }}`) && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
+    cdn-ws-{{ a }}:
+      rule: 'Host(`{{ a }}`) && PathPrefix(`{{ env.VMESS_WS_PATH }}`)'
       entryPoints:
         - websecure
       service: xray-vmess
       tls: {}
 {% endfor %}
+{% endif %}
 
   services:
     xray-vmess:

@@ -12,7 +12,7 @@ subprocess.run(
     [sys.executable, "-m", "pip", "install", "jinja2", "-q"],
     check=True, capture_output=True,
 )
-from jinja2 import Environment, BaseLoader, FileSystemLoader  # noqa: E402
+from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
 TEMPLATES = Path("/templates")
 OUTPUTS = {
@@ -28,35 +28,36 @@ REQUIRED = [
     "VMESS_UUID", "VMESS_WS_PATH",
 ]
 
-# ── helpers exposed to templates ──────────────────────────────
+# ── Jinja2 filters ───────────────────────────────────────────
 
-def build_sni(domain: str) -> str:
-    return f"HostSNI(`{domain.strip()}`)"
-
-def build_host(domains: str) -> str:
+def host_rule(domains: str) -> str:
+    """Build Host(`a.com`) || Host(`b.com`) from comma/space list."""
     parts = [f"Host(`{d.strip()}`)" for d in domains.replace(",", " ").split() if d.strip()]
     return " || ".join(parts)
 
-def split_list(val: str) -> list[str]:
-    return [s.strip() for s in val.replace(",", " ").split() if s.strip()]
+def host_sni(domain: str) -> str:
+    """Build HostSNI(`domain`) for a single domain."""
+    return f"HostSNI(`{domain.strip()}`)"
 
-# ── template env ──────────────────────────────────────────────
+def to_json_array(val: str) -> str:
+    """Wrap a single value in a JSON array."""
+    return json.dumps([val.strip()])
 
-def make_env(**globals) -> Environment:
+
+# ── template rendering ───────────────────────────────────────
+
+def render(name: str, dst: Path) -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES)),
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    env.filters.update(globals.get("filters", {}))
-    env.globals.update(globals)
-    return env
+    env.filters["host_rule"] = host_rule
+    env.filters["host_sni"] = host_sni
+    env.filters["json_array"] = to_json_array
 
-
-def render_j2(path: str, dst: Path, ctx: dict) -> None:
-    """Render a Jinja2 template relative to TEMPLATES."""
-    tmpl = make_env(**ctx).get_template(path)
-    result = tmpl.render(**ctx)
+    tmpl = env.get_template(name)
+    result = tmpl.render(env=dict(os.environ))
     dst.write_text(result)
     print(f"  → {dst.name}")
 
@@ -64,38 +65,19 @@ def render_j2(path: str, dst: Path, ctx: dict) -> None:
 # ── main ──────────────────────────────────────────────────────
 
 def main():
-    # Validate required vars
     missing = [k for k in REQUIRED if not os.environ.get(k)]
     if missing:
         print(f"ERROR: missing required vars: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
-    # Env dict for templates
-    env = dict(os.environ)
-
-    # Computed values
-    reality_name = env.get("REALITY_SERVER_NAME", "www.apple.com")
-    env["REALITY_DEST"] = f"{reality_name}:443"
-    env["REALITY_SERVER_NAMES_JSON"] = json.dumps([reality_name])
-    env["REALITY_SNI"] = build_sni(reality_name)
-    env["VMESS_HTTP_RULE"] = build_host(env["SITE_DOMAIN"])
-    env["SITE_ALIASES_LIST"] = split_list(env.get("SITE_ALIASES", ""))
-
-    # Context for Jinja2 (filters & globals)
-    ctx = {
-        "env": env,
-        "filters": {},
-        "split_list": split_list,
-    }
-
     print("Generating xray configs...")
-    render_j2("xray/reality.json.j2", OUTPUTS["xray_reality"] / "config.json", ctx)
-    render_j2("xray/vmess.json.j2", OUTPUTS["xray_vmess"] / "config.json", ctx)
+    render("xray/reality.json.j2", OUTPUTS["xray_reality"] / "config.json")
+    render("xray/vmess.json.j2", OUTPUTS["xray_vmess"] / "config.json")
 
     print("Generating Traefik configs...")
-    render_j2("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml", ctx)
-    render_j2("traefik/dynamic/tcp-reality.yml.j2", OUTPUTS["traefik_dynamic"] / "tcp-reality.yml", ctx)
-    render_j2("traefik/dynamic/http.yml.j2", OUTPUTS["traefik_dynamic"] / "http.yml", ctx)
+    render("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml")
+    render("traefik/dynamic/tcp-reality.yml.j2", OUTPUTS["traefik_dynamic"] / "tcp-reality.yml")
+    render("traefik/dynamic/http.yml.j2", OUTPUTS["traefik_dynamic"] / "http.yml")
 
     print("Done.")
 
