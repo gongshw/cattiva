@@ -13,7 +13,7 @@ subprocess.run(
 )
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
-TEMPLATES = Path("/templates")
+TEMPLATES = Path(os.environ.get("CATTIVA_TEMPLATES_DIR", "/templates"))
 OUTPUT_BASE = Path(os.environ.get("CATTIVA_OUTPUT_DIR", "/"))
 OUTPUTS = {
     "xray_reality": OUTPUT_BASE / "etc/xray-reality",

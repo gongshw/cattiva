@@ -24,6 +24,7 @@ jobs:
       - name: Generate configs with test values
         run: python3 entrypoint.py
         env:
+          CATTIVA_TEMPLATES_DIR: .
           CATTIVA_OUTPUT_DIR: /tmp/cattiva-test
           SITE_DOMAIN: test.example.com
           ACME_EMAIL: test@test.example.com
