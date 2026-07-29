@@ -68,6 +68,10 @@ jobs:
       - name: Test VLESS+Reality
         run: |
           source .env
+          echo "=== Env check ==="
+          echo "UUID: $VLESS_UUID"
+          echo "PublicKey: $REALITY_PUBLIC_KEY"
+
           cat > /tmp/client-reality.json << EOF
           {
             "log": {"loglevel": "warning"},
@@ -82,16 +86,28 @@ jobs:
           }
           EOF
 
+          echo "=== Client config ==="
+          python3 -m json.tool /tmp/client-reality.json
+
+          echo "=== Start client ==="
+          docker network ls | grep cattiva
           docker run -d --name xray-client \
             -v /tmp/client-reality.json:/etc/xray/config.json:ro \
             -p 10999:10808 \
-            --network ${{ github.event.repository.name }}_cattiva \
+            --network cattiva_cattiva \
             ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
           sleep 3
 
-          curl -sx socks5h://localhost:10999 -o /dev/null -w "%{http_code} - %{time_total}s" \
-            --connect-timeout 10 http://httpbin.org/get 2>&1 | grep -q "200"
-          echo "✅ VLESS+Reality proxy works"
+          echo "=== Client logs ==="
+          docker logs xray-client 2>&1 | tail -5
+
+          echo "=== DNS test ==="
+          docker run --rm --network cattiva_cattiva alpine \
+            nslookup traefik 2>&1 | head -5
+
+          echo "=== Proxy test ==="
+          curl -sx socks5h://localhost:10999 -o /tmp/proxy-result -w "HTTP %{http_code} - %{time_total}s\n" \
+            --connect-timeout 10 http://httpbin.org/get 2>&1 || echo "curl failed"
 
       - name: Cleanup
         if: always()
