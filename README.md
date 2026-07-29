@@ -19,7 +19,7 @@ docker compose up -d
                            │
         ┌──────────────────┼──────────────────┐
         │                  │                  │
-   HostSNI(apple)    Host(domain) + WS     Host(domain)
+   HostSNI(cloudflare)    Host(domain) + WS     Host(domain)
    TCP passthrough   TLS + WS proxy        TLS + reverse proxy
         │                  │                  │
         ▼                  ▼                  ▼
