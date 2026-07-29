@@ -8,6 +8,25 @@ tcp:
       entryPoints:
         - websecure
       service: xray-reality
+      priority: 100
+      tls:
+        passthrough: true
+
+    reject-nosni:
+      rule: 'HostSNIRegexp(`{domain:^$}`)'
+      entryPoints:
+        - websecure
+      service: blackhole
+      priority: 10
+      tls:
+        passthrough: true
+
+    reject-unknown:
+      rule: 'HostSNIRegexp(`{domain:.+}`)'
+      entryPoints:
+        - websecure
+      service: blackhole
+      priority: 1
       tls:
         passthrough: true
 
@@ -16,3 +35,8 @@ tcp:
       loadBalancer:
         servers:
           - address: "xray-reality:4433"
+
+    blackhole:
+      loadBalancer:
+        servers:
+          - address: "127.0.0.1:1"
