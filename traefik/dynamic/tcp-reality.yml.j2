@@ -4,7 +4,7 @@
 tcp:
   routers:
     reality:
-      rule: 'HostSNI(`{{ env.REALITY_SERVER_NAME }}`)'
+      rule: '{{ (env.REALITY_SERVER_NAMES or env.REALITY_SERVER_NAME) | sni_rule }}'
       entryPoints:
         - websecure
       service: xray-reality

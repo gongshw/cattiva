@@ -34,6 +34,7 @@ jobs:
           REALITY_PUBLIC_KEY: ci-test-public-key
           REALITY_SHORT_ID: 0123456789abcdef
           REALITY_SERVER_NAME: www.apple.com
+          REALITY_SERVER_NAMES: www.apple.com,www.cloudflare.com
           VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
           VMESS_WS_PATH: /proxy/ws
           SITE_ALIASES: cdn.test.example.com

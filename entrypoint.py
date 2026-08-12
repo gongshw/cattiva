@@ -35,6 +35,18 @@ def host_rule(domains: str) -> str:
     return " || ".join(parts)
 
 
+def sni_list(names: str) -> str:
+    """Build JSON array string from comma/space list: `["a.com", "b.com"]`."""
+    parts = [f'"{d.strip()}"' for d in names.replace(",", " ").split() if d.strip()]
+    return "[" + ", ".join(parts) + "]"
+
+
+def sni_rule(names: str) -> str:
+    """Build HostSNI(`a.com`) || HostSNI(`b.com`) from comma/space list."""
+    parts = [f"HostSNI(`{d.strip()}`)" for d in names.replace(",", " ").split() if d.strip()]
+    return " || ".join(parts)
+
+
 def render(name: str, dst: Path) -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES)),
@@ -42,6 +54,8 @@ def render(name: str, dst: Path) -> None:
         lstrip_blocks=True,
     )
     env.filters["host_rule"] = host_rule
+    env.filters["sni_list"] = sni_list
+    env.filters["sni_rule"] = sni_rule
     tmpl = env.get_template(name)
     result = tmpl.render(env=dict(os.environ))
     dst.parent.mkdir(parents=True, exist_ok=True)
