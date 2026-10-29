@@ -1,0 +1,29 @@
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [{
+    "port": {{ env.HYSTERIA_PORT | default(443) }},
+    "listen": "0.0.0.0",
+    "protocol": "hysteria",
+    "settings": {
+      "version": 2,
+      "clients": [{"auth": "{{ env.HYSTERIA_PASSWORD }}"}]
+    },
+    "streamSettings": {
+      "network": "hysteria",
+      "security": "tls",
+      "tlsSettings": {
+        "alpn": ["h3"],
+        "certificates": [{
+          "certificateFile": "/etc/hysteria/{{ env.HYSTERIA_CERT_FILE | default('cert.pem') }}",
+          "keyFile": "/etc/hysteria/{{ env.HYSTERIA_KEY_FILE | default('key.pem') }}"
+        }]
+      },
+      "hysteriaSettings": {
+        "version": 2,
+        "auth": "{{ env.HYSTERIA_PASSWORD }}",
+        "udpIdleTimeout": {{ env.HYSTERIA_UDP_IDLE_TIMEOUT | default(60) }}
+      }
+    }
+  }],
+  "outbounds": [{"protocol": "freedom", "tag": "direct"}]
+}

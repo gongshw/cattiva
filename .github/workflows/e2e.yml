@@ -32,7 +32,21 @@ jobs:
           VMESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
           VMESS_WS_PATH=/proxy/ws
           WWW_DIR=./www
+          HYSTERIA_PASSWORD=e2e-test-hysteria-password
+          HYSTERIA_PORT=443
+          HYSTERIA_PORT_HOST=443
+          HYSTERIA_CERT_DIR=./data/hysteria
+          HYSTERIA_CERT_FILE=cert.pem
+          HYSTERIA_KEY_FILE=key.pem
+          HYSTERIA_UDP_IDLE_TIMEOUT=60
           EOF
+
+          mkdir -p data/hysteria
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj "/CN=test.local" \
+            -keyout data/hysteria/key.pem -out data/hysteria/cert.pem 2>/dev/null
+          chmod 644 data/hysteria/key.pem data/hysteria/cert.pem
+          PIN=$(openssl x509 -in data/hysteria/cert.pem -outform DER | sha256sum | cut -d' ' -f1)
 
       - name: Start stack
         run: |
@@ -119,8 +133,47 @@ jobs:
           [ -n "$code" ] && [ "$code" != "000" ]
           echo "✅ CDN alias routes ($code)"
 
+      - name: Hysteria 2 endpoint reachable
+        run: |
+          # xray-hysteria listens on UDP 443 inside the compose network
+          cat > /tmp/client-hysteria.json << EOF
+          {
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"port": 10809, "listen": "0.0.0.0", "protocol": "socks", "settings": {"auth": "noauth", "udp": true}}],
+            "outbounds": [{
+              "protocol": "hysteria",
+              "settings": {"version": 2, "address": "xray-hysteria", "port": 443},
+              "streamSettings": {
+                "network": "hysteria",
+                "security": "tls",
+                "tlsSettings": {"serverName": "test.local", "alpn": ["h3"], "pinnedPeerCertSha256": "$PIN"},
+                "hysteriaSettings": {"version": 2, "auth": "e2e-test-hysteria-password"}
+              }
+            }]
+          }
+          EOF
+          # the compose network name is project-scoped, so resolve it
+          NET=$(docker inspect xray-hysteria --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+          echo "compose network: $NET"
+          docker run -d --name hysteria-client \
+            -v /tmp/client-hysteria.json:/etc/xray/config.json:ro \
+            -p 10998:10809 \
+            --network "$NET" \
+            ghcr.io/xtls/xray-core:latest run -c /etc/xray/config.json
+          sleep 3
+          docker logs hysteria-client 2>&1 | grep -q "started" || { docker logs hysteria-client; exit 1; }
+          echo "✅ hysteria client started"
+
+          echo "=== Hysteria 2 tunnel test ==="
+          code=$(curl -sS -x socks5h://localhost:10998 --max-time 30 \
+            -o /dev/null -w '%{http_code}' http://www.gstatic.com/generate_204 2>&1 || true)
+          echo "Hysteria tunnel returned: $code"
+          [ "$code" = "204" ] || [ "$code" = "200" ] || { docker logs hysteria-client; exit 1; }
+          echo "✅ Hysteria 2 tunnel works"
+
       - name: Cleanup
         if: always()
         run: |
           docker compose down -v 2>/dev/null
           docker rm -f xray-client 2>/dev/null || true
+          docker rm -f hysteria-client 2>/dev/null || true

@@ -5,6 +5,7 @@ services:
     volumes:
       - xray-reality-config:/etc/xray-reality
       - xray-vmess-config:/etc/xray-vmess
+      - xray-hysteria-config:/etc/xray-hysteria
       - traefik-dynamic:/etc/traefik/dynamic
       - traefik-config:/etc/traefik/static
       - ./xray:/templates/xray:ro
@@ -21,6 +22,11 @@ services:
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
       - SITE_ALIASES=${SITE_ALIASES:-}
+      - HYSTERIA_PASSWORD=${HYSTERIA_PASSWORD:?err}
+      - HYSTERIA_PORT=${HYSTERIA_PORT:-443}
+      - HYSTERIA_CERT_FILE=${HYSTERIA_CERT_FILE:-cert.pem}
+      - HYSTERIA_KEY_FILE=${HYSTERIA_KEY_FILE:-key.pem}
+      - HYSTERIA_UDP_IDLE_TIMEOUT=${HYSTERIA_UDP_IDLE_TIMEOUT:-60}
     command: ["python3", "/entrypoint.py"]
 
   traefik:
@@ -72,6 +78,24 @@ services:
     networks:
       - cattiva
 
+  # Hysteria 2 rides on QUIC/UDP and terminates TLS itself.
+  # It never touches Traefik: TCP 443 stays with Traefik, UDP 443 goes here.
+  xray-hysteria:
+    image: ghcr.io/xtls/xray-core:latest
+    container_name: xray-hysteria
+    restart: always
+    command: ["run", "-c", "/etc/xray/config.json"]
+    ports:
+      - ${HYSTERIA_PORT_HOST:-443}:${HYSTERIA_PORT:-443}/udp
+    volumes:
+      - xray-hysteria-config:/etc/xray:ro
+      - ${HYSTERIA_CERT_DIR:-./data/hysteria}:/etc/hysteria:ro
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
+    networks:
+      - cattiva
+
   static:
     image: nginx:alpine
     container_name: cattiva-static
@@ -88,5 +112,6 @@ networks:
 volumes:
   xray-reality-config:
   xray-vmess-config:
+  xray-hysteria-config:
   traefik-dynamic:
   traefik-config:

@@ -37,6 +37,11 @@ jobs:
           VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
           VMESS_WS_PATH: /proxy/ws
           SITE_ALIASES: cdn.test.example.com
+          HYSTERIA_PASSWORD: ci-test-hysteria-password
+          HYSTERIA_PORT: "443"
+          HYSTERIA_CERT_FILE: cert.pem
+          HYSTERIA_KEY_FILE: key.pem
+          HYSTERIA_UDP_IDLE_TIMEOUT: "60"
 
       - name: Validate generated configs
         run: python3 ci/validate.py
