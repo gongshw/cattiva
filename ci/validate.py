@@ -11,6 +11,7 @@ BASE = Path(os.environ.get("CATTIVA_OUTPUT_DIR", "/etc"))
 FILES = [
     ("xray-reality", BASE / "xray-reality/config.json", "json"),
     ("xray-vmess",   BASE / "xray-vmess/config.json",   "json"),
+    ("xray-hysteria", BASE / "xray-hysteria/config.json", "json"),
     ("traefik",      BASE / "traefik/static/traefik.yml",       "yaml"),
     ("tcp-reality",  BASE / "traefik/dynamic/tcp-reality.yml",  "yaml"),
     ("http",         BASE / "traefik/dynamic/http.yml",         "yaml"),

@@ -3,3 +3,7 @@
 
 # Runtime data
 data/
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -18,6 +18,7 @@ OUTPUT_BASE = Path(os.environ.get("CATTIVA_OUTPUT_DIR", "/etc"))
 OUTPUTS = {
     "xray_reality": OUTPUT_BASE / "xray-reality",
     "xray_vmess": OUTPUT_BASE / "xray-vmess",
+    "xray_hysteria": OUTPUT_BASE / "xray-hysteria",
     "traefik": OUTPUT_BASE / "traefik/static",
     "traefik_dynamic": OUTPUT_BASE / "traefik/dynamic",
 }
@@ -26,6 +27,7 @@ REQUIRED = [
     "SITE_DOMAIN", "VLESS_UUID", "REALITY_PRIVATE_KEY",
     "REALITY_SERVER_NAME", "REALITY_SHORT_ID",
     "VMESS_UUID", "VMESS_WS_PATH",
+    "HYSTERIA_PASSWORD",
 ]
 
 
@@ -58,6 +60,7 @@ def main():
     print("Generating xray configs...")
     render("xray/reality.json.j2", OUTPUTS["xray_reality"] / "config.json")
     render("xray/vmess.json.j2", OUTPUTS["xray_vmess"] / "config.json")
+    render("xray/hysteria.json.j2", OUTPUTS["xray_hysteria"] / "config.json")
 
     print("Generating Traefik configs...")
     render("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml")
