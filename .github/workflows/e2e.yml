@@ -46,7 +46,6 @@ jobs:
             -subj "/CN=test.local" \
             -keyout data/hysteria/key.pem -out data/hysteria/cert.pem 2>/dev/null
           chmod 644 data/hysteria/key.pem data/hysteria/cert.pem
-          PIN=$(openssl x509 -in data/hysteria/cert.pem -outform DER | sha256sum | cut -d' ' -f1)
 
       - name: Start stack
         run: |
@@ -136,6 +135,9 @@ jobs:
       - name: Hysteria 2 endpoint reachable
         run: |
           # xray-hysteria listens on UDP 443 inside the compose network
+          # each GitHub Actions step runs in a fresh shell, so recompute the pin here
+          PIN=$(openssl x509 -in data/hysteria/cert.pem -outform DER | sha256sum | cut -d' ' -f1)
+          echo "cert pin: $PIN"
           cat > /tmp/client-hysteria.json << EOF
           {
             "log": {"loglevel": "warning"},
