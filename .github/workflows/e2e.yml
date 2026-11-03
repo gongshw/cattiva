@@ -32,7 +32,23 @@ jobs:
           VMESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
           VMESS_WS_PATH=/proxy/ws
           WWW_DIR=./www
+          HYSTERIA_PASSWORD=e2e-test-hysteria-password
+          HYSTERIA_DOMAIN=test.local
+          HYSTERIA_PORT=443
+          HYSTERIA_PORT_HOST=14443
+          HYSTERIA_TLS_MODE=local
+          HYSTERIA_CERT_DIR=./data/hysteria
+          HYSTERIA_CERT_FILE=cert.pem
+          HYSTERIA_KEY_FILE=key.pem
+          HYSTERIA_SNI_GUARD=disable
+          HYSTERIA_UDP_IDLE_TIMEOUT=60s
           EOF
+
+          mkdir -p data/hysteria
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj "/CN=test.local" \
+            -keyout data/hysteria/key.pem -out data/hysteria/cert.pem 2>/dev/null
+          chmod 644 data/hysteria/key.pem data/hysteria/cert.pem
 
       - name: Start stack
         run: |
@@ -119,8 +135,38 @@ jobs:
           [ -n "$code" ] && [ "$code" != "000" ]
           echo "✅ CDN alias routes ($code)"
 
+      - name: Hysteria 2 tunnel works
+        run: |
+          cat > /tmp/client-hysteria.yaml << EOF
+          server: hysteria:443
+          auth: "e2e-test-hysteria-password"
+          tls:
+            sni: test.local
+            insecure: true
+          socks5:
+            listen: 0.0.0.0:1080
+          EOF
+
+          docker run -d --name hysteria-client \
+            -v /tmp/client-hysteria.yaml:/etc/hysteria/client.yaml:ro \
+            --network cattiva_cattiva \
+            tobyxdd/hysteria:v2.13.0 client -c /etc/hysteria/client.yaml --disable-update-check
+          sleep 4
+
+          docker logs hysteria-client 2>&1 | grep -q "connected to server" \
+            || { docker logs hysteria-client; exit 1; }
+          echo "✅ hysteria client connected"
+
+          code=$(docker run --rm --network cattiva_cattiva alpine:latest sh -c \
+            "apk add -q curl && curl -sS --max-time 30 -x socks5h://hysteria-client:1080 \
+             -o /dev/null -w '%{http_code}' https://api.ipify.org" 2>&1 || true)
+          echo "Hysteria tunnel returned: $code"
+          [ "$code" = "200" ] || { docker logs hysteria-client; exit 1; }
+          echo "✅ Hysteria 2 tunnel works"
+
       - name: Cleanup
         if: always()
         run: |
           docker compose down -v 2>/dev/null
           docker rm -f xray-client 2>/dev/null || true
+          docker rm -f hysteria-client 2>/dev/null || true

@@ -7,9 +7,11 @@ services:
       - xray-vmess-config:/etc/xray-vmess
       - traefik-dynamic:/etc/traefik/dynamic
       - traefik-config:/etc/traefik/static
+      - hysteria-config:/etc/hysteria
       - ./xray:/templates/xray:ro
       - ./traefik/dynamic:/templates/traefik/dynamic:ro
       - ./traefik/traefik.yml.j2:/templates/traefik/traefik.yml.j2:ro
+      - ./hysteria/server.yaml.j2:/templates/hysteria/server.yaml.j2:ro
       - ./entrypoint.py:/entrypoint.py:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}
@@ -21,6 +23,19 @@ services:
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
       - SITE_ALIASES=${SITE_ALIASES:-}
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
+      - HYSTERIA_PASSWORD=${HYSTERIA_PASSWORD:?err}
+      - HYSTERIA_DOMAIN=${HYSTERIA_DOMAIN:-${SITE_DOMAIN}}
+      - HYSTERIA_PORT=${HYSTERIA_PORT:-443}
+      - HYSTERIA_TLS_MODE=${HYSTERIA_TLS_MODE:-acme}
+      - HYSTERIA_CERT_FILE=${HYSTERIA_CERT_FILE:-cert.pem}
+      - HYSTERIA_KEY_FILE=${HYSTERIA_KEY_FILE:-key.pem}
+      - HYSTERIA_SNI_GUARD=${HYSTERIA_SNI_GUARD:-dns-san}
+      - HYSTERIA_ACME_DIR=${HYSTERIA_ACME_DIR:-/acme}
+      - HYSTERIA_UDP_IDLE_TIMEOUT=${HYSTERIA_UDP_IDLE_TIMEOUT:-60s}
+      - HYSTERIA_BANDWIDTH_UP=${HYSTERIA_BANDWIDTH_UP:-}
+      - HYSTERIA_BANDWIDTH_DOWN=${HYSTERIA_BANDWIDTH_DOWN:-}
+      - HYSTERIA_MASQUERADE_URL=${HYSTERIA_MASQUERADE_URL:-http://static:80}
     command: ["python3", "/entrypoint.py"]
 
   traefik:
@@ -81,6 +96,28 @@ services:
     networks:
       - cattiva
 
+  hysteria:
+    # Pinned to a specific release: Hysteria 2's config format changes
+    # between minor versions (e.g. the namedotcom DNS provider was removed in
+    # v2.11.0), so an implicit "latest" can break an existing deployment.
+    image: tobyxdd/hysteria:v2.13.0
+    container_name: hysteria
+    restart: always
+    command: ["server", "-c", "/etc/hysteria/server.yaml", "--disable-update-check"]
+    ports:
+      # Hysteria 2 is QUIC/UDP only. Traefik keeps TCP 443; UDP 443 is a
+      # separate protocol space, so both can use port 443.
+      - "${HYSTERIA_PORT_HOST:-443}:${HYSTERIA_PORT:-443}/udp"
+    volumes:
+      - hysteria-config:/etc/hysteria:ro
+      - hysteria-acme:/acme
+      - ${HYSTERIA_CERT_DIR:-./data/hysteria}:/etc/hysteria-certs:ro
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
+    networks:
+      - cattiva
+
 networks:
   cattiva:
     driver: bridge
@@ -90,3 +127,5 @@ volumes:
   xray-vmess-config:
   traefik-dynamic:
   traefik-config:
+  hysteria-config:
+  hysteria-acme:

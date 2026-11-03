@@ -37,8 +37,80 @@ jobs:
           VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
           VMESS_WS_PATH: /proxy/ws
           SITE_ALIASES: cdn.test.example.com
+          HYSTERIA_PASSWORD: ci-test-hysteria-password
+          HYSTERIA_DOMAIN: test.example.com
+          HYSTERIA_PORT: "443"
+          HYSTERIA_TLS_MODE: acme
+          HYSTERIA_UDP_IDLE_TIMEOUT: 60s
 
       - name: Validate generated configs
         run: python3 ci/validate.py
         env:
           CATTIVA_OUTPUT_DIR: /tmp/cattiva-test
+
+      - name: Generate configs in local-certificate mode
+        run: |
+          rm -rf /tmp/cattiva-test-local
+          python3 entrypoint.py
+        env:
+          CATTIVA_TEMPLATES_DIR: .
+          CATTIVA_OUTPUT_DIR: /tmp/cattiva-test-local
+          SITE_DOMAIN: test.example.com
+          ACME_EMAIL: test@test.example.com
+          CF_DNS_API_TOKEN: dummy-token
+          VLESS_UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+          REALITY_PRIVATE_KEY: ci-test-private-key
+          REALITY_PUBLIC_KEY: ci-test-public-key
+          REALITY_SHORT_ID: 0123456789abcdef
+          REALITY_SERVER_NAME: www.apple.com
+          VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
+          VMESS_WS_PATH: /proxy/ws
+          SITE_ALIASES: cdn.test.example.com
+          HYSTERIA_PASSWORD: ci-test-hysteria-password
+          HYSTERIA_DOMAIN: test.example.com
+          HYSTERIA_PORT: "443"
+          HYSTERIA_TLS_MODE: local
+          HYSTERIA_CERT_FILE: cert.pem
+          HYSTERIA_KEY_FILE: key.pem
+          HYSTERIA_SNI_GUARD: dns-san
+          HYSTERIA_UDP_IDLE_TIMEOUT: 60s
+
+      - name: Validate generated configs (local cert mode)
+        run: python3 ci/validate.py
+        env:
+          CATTIVA_OUTPUT_DIR: /tmp/cattiva-test-local
+
+      - name: Assert no secrets leaked into tracked files
+        run: |
+          # Guard against committing real credentials. The generated Hysteria
+          # config embeds the Cloudflare token and the proxy password, but
+          # they must only ever come from the environment at runtime.
+          python3 - <<'PY'
+          import re, subprocess, sys
+
+          tracked = subprocess.run(
+              ["git", "ls-files", "-z"], capture_output=True, text=True, check=True
+          ).stdout.split("\0")
+
+          # A tracked file may mention the key, but the value must be either a
+          # Jinja placeholder (rendered at deploy time) or a CI dummy.
+          allowed = re.compile(r"^\s*(\{\{.*\}\}|dummy-token)\s*$")
+          key = "cloudflare_api" + "_token"
+          offenders = []
+          for path in filter(None, tracked):
+              try:
+                  text = open(path, encoding="utf-8", errors="ignore").read()
+              except OSError:
+                  continue
+              for line in text.splitlines():
+                  m = re.search(key + r":\s*(.*)$", line)
+                  if m and not allowed.match(m.group(1)):
+                      offenders.append(f"{path}: {line.strip()}")
+
+          if offenders:
+              print("❌ literal Cloudflare token value in tracked files:")
+              for o in offenders:
+                  print("   ", o)
+              sys.exit(1)
+          print("✅ no token values in tracked files")
+          PY
