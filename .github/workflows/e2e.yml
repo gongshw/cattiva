@@ -157,11 +157,19 @@ jobs:
             || { docker logs hysteria-client; exit 1; }
           echo "✅ hysteria client connected"
 
+          # Keep stderr out of $code: docker prints image-pull progress there,
+          # which would otherwise be captured together with the HTTP status.
           code=$(docker run --rm --network cattiva_cattiva alpine:latest sh -c \
-            "apk add -q curl && curl -sS --max-time 30 -x socks5h://hysteria-client:1080 \
-             -o /dev/null -w '%{http_code}' https://api.ipify.org" 2>&1 || true)
+            "apk add -q curl >/dev/null 2>&1 && curl -sS --max-time 30 \
+             -x socks5h://hysteria-client:1080 -o /dev/null -w '%{http_code}' \
+             https://api.ipify.org" 2>/tmp/hysteria-curl.err) || true
           echo "Hysteria tunnel returned: $code"
-          [ "$code" = "200" ] || { docker logs hysteria-client; exit 1; }
+          [ "$code" = "200" ] || {
+            echo "--- curl stderr ---"
+            cat /tmp/hysteria-curl.err
+            docker logs hysteria-client
+            exit 1
+          }
           echo "✅ Hysteria 2 tunnel works"
 
       - name: Cleanup
