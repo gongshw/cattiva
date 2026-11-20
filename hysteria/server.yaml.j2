@@ -31,10 +31,14 @@ auth:
 udpIdleTimeout: 60s
 
 # Serve the static camouflage site for plain HTTP requests that reach the
-# QUIC port, so the endpoint looks like an ordinary website. It proxies
-# back to this host's own HTTPS site.
+# QUIC port, so the endpoint looks like an ordinary website.
+#
+# The target is the `static` service on the compose network, not the public
+# domain: it is the same page Traefik serves for SITE_DOMAIN, and proxying
+# internally avoids a DNS lookup, a TLS handshake and a round trip back
+# through Traefik for every probe.
 masquerade:
   type: proxy
   proxy:
-    url: https://{{ env.SITE_DOMAIN }}
+    url: http://static:80
     rewriteHost: true

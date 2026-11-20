@@ -102,6 +102,11 @@ because QUIC cannot traverse a Cloudflare proxy.
 
 `HYSTERIA_PASSWORD` is therefore the only Hysteria setting to fill in.
 
+Plain HTTP requests that reach the QUIC port are answered by the masquerade
+handler, which proxies them to the `static` service on the compose network.
+A probe therefore sees the same camouflage page Traefik serves for
+`SITE_DOMAIN`, rather than an error that would identify the port as a proxy.
+
 The client authenticates with that password. A client URI looks like:
 
 ```

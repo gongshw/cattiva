@@ -204,6 +204,29 @@ jobs:
           }
           echo "✅ Hysteria 2 tunnel works"
 
+      - name: Hysteria masquerade serves the static site
+        run: |
+          source .env
+          HIP=$(docker inspect hysteria \
+            --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+          # Plain HTTP/3 requests that reach the QUIC port are answered by the
+          # masquerade handler, which is what makes the endpoint look like an
+          # ordinary website to a prober. SNI has to be the certificate's
+          # domain; -k skips verification of the self-signed test cert.
+          body=$(docker run --rm --network cattiva_cattiva ymuski/curl-http3 \
+            curl --http3 -k -sS --max-time 25 \
+            --resolve "test.local:${PORT_HTTPS}:${HIP}" \
+            "https://test.local:${PORT_HTTPS}/" 2>/tmp/masq.err) || true
+
+          echo "$body" | grep -qi "It Works" || {
+            echo "❌ masquerade did not serve the static site"
+            echo "--- curl stderr ---"; cat /tmp/masq.err
+            echo "--- hysteria log ---"; docker logs hysteria
+            exit 1
+          }
+          echo "✅ masquerade serves the static site over HTTP/3"
+
       - name: Cleanup
         if: always()
         run: |
