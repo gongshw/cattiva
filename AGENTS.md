@@ -54,7 +54,6 @@ cattiva/
 │   └── index.html          # Static camouflage page
 └── data/                   # Runtime data — gitignored
     ├── acme/               # Let's Encrypt certs (Traefik)
-    ├── hysteria/           # Local Hysteria certs (local TLS mode)
     └── traefik/            # Traefik state
 ```
 

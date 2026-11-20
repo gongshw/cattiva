@@ -86,25 +86,26 @@ openssl rand -base64 24
 
 ## Hysteria 2
 
-Two certificate modes, selected with `HYSTERIA_TLS_MODE`:
+There are no Hysteria-specific domain or port settings. The service reuses the
+stack's existing values:
 
-- **`acme`** (default) — the certificate is issued and renewed automatically
-  through Cloudflare DNS-01, using `CF_DNS_API_TOKEN`. `HYSTERIA_DOMAIN` must
-  point at this host with a **direct** (unproxied) DNS record, because QUIC
-  cannot traverse a Cloudflare proxy.
-- **`local`** — bring your own PEM pair in `HYSTERIA_CERT_DIR`. No DNS
-  provider is needed. Useful for air-gapped or CI environments.
+| What | Comes from |
+|---|---|
+| Certificate domain | `SITE_DOMAIN` |
+| QUIC listen / published port | `PORT_HTTPS` |
+| ACME account | `ACME_EMAIL`, `CF_DNS_API_TOKEN` |
+| Client authentication | `HYSTERIA_PASSWORD` |
 
-The client authenticates with the `HYSTERIA_PASSWORD` value. A client URI
-looks like:
+The certificate is issued and renewed automatically through Cloudflare DNS-01.
+`SITE_DOMAIN` must point at this host with a **direct** (unproxied) DNS record,
+because QUIC cannot traverse a Cloudflare proxy.
+
+`HYSTERIA_PASSWORD` is therefore the only Hysteria setting to fill in.
+
+The client authenticates with that password. A client URI looks like:
 
 ```
 hysteria2://<password>@<domain>:443/?sni=<domain>&insecure=0
 ```
 
-If the domain's certificate is valid, no pinning is needed. When using
-`local` mode with a self-signed certificate, pin it instead:
-
-```bash
-openssl x509 -in cert.pem -outform DER | sha256sum
-```
+If the domain's certificate is valid, no pinning is needed.

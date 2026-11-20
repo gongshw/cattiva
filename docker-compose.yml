@@ -25,17 +25,8 @@ services:
       - SITE_ALIASES=${SITE_ALIASES:-}
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
       - HYSTERIA_PASSWORD=${HYSTERIA_PASSWORD:?err}
-      - HYSTERIA_DOMAIN=${HYSTERIA_DOMAIN:-${SITE_DOMAIN}}
-      - HYSTERIA_PORT=${HYSTERIA_PORT:-443}
-      - HYSTERIA_TLS_MODE=${HYSTERIA_TLS_MODE:-acme}
-      - HYSTERIA_CERT_FILE=${HYSTERIA_CERT_FILE:-cert.pem}
-      - HYSTERIA_KEY_FILE=${HYSTERIA_KEY_FILE:-key.pem}
-      - HYSTERIA_SNI_GUARD=${HYSTERIA_SNI_GUARD:-dns-san}
-      - HYSTERIA_ACME_DIR=${HYSTERIA_ACME_DIR:-/acme}
-      - HYSTERIA_UDP_IDLE_TIMEOUT=${HYSTERIA_UDP_IDLE_TIMEOUT:-60s}
-      - HYSTERIA_BANDWIDTH_UP=${HYSTERIA_BANDWIDTH_UP:-}
-      - HYSTERIA_BANDWIDTH_DOWN=${HYSTERIA_BANDWIDTH_DOWN:-}
-      - HYSTERIA_MASQUERADE_URL=${HYSTERIA_MASQUERADE_URL:-http://static:80}
+      # Hysteria 2 reuses the stack's public HTTPS port for QUIC/UDP.
+      - PORT_HTTPS=${PORT_HTTPS:-443}
     command: ["python3", "/entrypoint.py"]
 
   traefik:
@@ -107,11 +98,10 @@ services:
     ports:
       # Hysteria 2 is QUIC/UDP only. Traefik keeps TCP 443; UDP 443 is a
       # separate protocol space, so both can use port 443.
-      - "${HYSTERIA_PORT_HOST:-443}:${HYSTERIA_PORT:-443}/udp"
+      - "${PORT_HTTPS:-443}:${PORT_HTTPS:-443}/udp"
     volumes:
       - hysteria-config:/etc/hysteria:ro
       - hysteria-acme:/acme
-      - ${HYSTERIA_CERT_DIR:-./data/hysteria}:/etc/hysteria-certs:ro
     depends_on:
       config-gen:
         condition: service_completed_successfully

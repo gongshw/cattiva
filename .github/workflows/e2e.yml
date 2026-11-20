@@ -33,22 +33,45 @@ jobs:
           VMESS_WS_PATH=/proxy/ws
           WWW_DIR=./www
           HYSTERIA_PASSWORD=e2e-test-hysteria-password
-          HYSTERIA_DOMAIN=test.local
-          HYSTERIA_PORT=443
-          HYSTERIA_PORT_HOST=14443
-          HYSTERIA_TLS_MODE=local
-          HYSTERIA_CERT_DIR=./data/hysteria
-          HYSTERIA_CERT_FILE=cert.pem
-          HYSTERIA_KEY_FILE=key.pem
-          HYSTERIA_SNI_GUARD=disable
-          HYSTERIA_UDP_IDLE_TIMEOUT=60s
           EOF
 
-          mkdir -p data/hysteria
+          # The shipped template only supports ACME (DNS-01), which needs a
+          # real domain and a real Cloudflare token — neither exists in CI.
+          # Seed Hysteria's certificate cache instead: when a valid
+          # certificate is already cached for the domain, Hysteria skips
+          # issuance and starts normally. The certificate files below mirror
+          # the layout and metadata format Hysteria writes after a real
+          # issuance, so everything downstream is the production code path.
+          CA_DIR=acme-v02.api.letsencrypt.org-directory
+          SEED="data/hysteria-seed/certificates/$CA_DIR/test.local"
+          mkdir -p "$SEED"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
             -subj "/CN=test.local" \
-            -keyout data/hysteria/key.pem -out data/hysteria/cert.pem 2>/dev/null
-          chmod 644 data/hysteria/key.pem data/hysteria/cert.pem
+            -addext "subjectAltName=DNS:test.local" \
+            -keyout "$SEED/test.local.key" -out "$SEED/test.local.crt" 2>/dev/null
+          chmod 644 "$SEED/test.local.key" "$SEED/test.local.crt"
+
+          cat > "$SEED/test.local.json" << JSON
+          {
+            "sans": ["test.local"],
+            "issuer_data": {
+              "url": "https://acme-v02.api.letsencrypt.org/acme/cert/e2e",
+              "ca": "https://acme-v02.api.letsencrypt.org/directory",
+              "account": "https://acme-v02.api.letsencrypt.org/acme/acct/e2e"
+            }
+          }
+          JSON
+
+      - name: Seed Hysteria certificate cache
+        run: |
+          # The volume has to exist and be populated before hysteria starts:
+          # without a cached certificate the ACME client tries to reach Let's
+          # Encrypt and the server exits on failure.
+          docker volume create cattiva_hysteria-acme >/dev/null
+          docker run --rm \
+            -v cattiva_hysteria-acme:/acme \
+            -v "$PWD/data/hysteria-seed:/seed:ro" \
+            alpine:latest sh -c 'cp -a /seed/. /acme/ && find /acme -type f'
 
       - name: Start stack
         run: |
@@ -137,15 +160,24 @@ jobs:
 
       - name: Hysteria 2 tunnel works
         run: |
+          source .env
+
           cat > /tmp/client-hysteria.yaml << EOF
-          server: hysteria:443
-          auth: "e2e-test-hysteria-password"
+          server: hysteria:${PORT_HTTPS}
+          auth: "${HYSTERIA_PASSWORD}"
           tls:
             sni: test.local
             insecure: true
           socks5:
             listen: 0.0.0.0:1080
           EOF
+
+          docker inspect hysteria --format '{{.State.Status}}' | grep -q running || {
+            echo "❌ hysteria container is not running"
+            docker logs hysteria
+            exit 1
+          }
+          echo "✅ hysteria server running"
 
           docker run -d --name hysteria-client \
             -v /tmp/client-hysteria.yaml:/etc/hysteria/client.yaml:ro \

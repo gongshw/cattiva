@@ -4,48 +4,37 @@
 # Traefik entirely. Traefik keeps TCP 443; this service owns UDP 443.
 # Both can use port 443 because TCP and UDP are separate protocol spaces.
 
-listen: :{{ env.HYSTERIA_PORT | default(443) }}
+listen: :{{ env.PORT_HTTPS }}
 
-{% if env.HYSTERIA_TLS_MODE | default('acme') == 'local' %}
-# Local certificate mode: bring your own PEM pair.
-# Useful for testing and for deployments that manage certs outside this stack.
-tls:
-  cert: /etc/hysteria-certs/{{ env.HYSTERIA_CERT_FILE | default('cert.pem') }}
-  key: /etc/hysteria-certs/{{ env.HYSTERIA_KEY_FILE | default('key.pem') }}
-  sniGuard: {{ env.HYSTERIA_SNI_GUARD | default('dns-san') }}
-{% else %}
-# ACME DNS-01 mode: certificates are issued and renewed automatically.
-# The DNS provider token is read from the environment at generation time and
-# is never committed to this repository.
+# ACME DNS-01 certificate, issued and renewed automatically. The DNS
+# provider token is read from the environment at generation time and is
+# never committed to this repository.
+#
+# SITE_DOMAIN must resolve to this host with a direct, unproxied DNS
+# record: QUIC cannot traverse a Cloudflare proxy.
 acme:
   domains:
-    - "{{ env.HYSTERIA_DOMAIN }}"
+    - "{{ env.SITE_DOMAIN }}"
   email: {{ env.ACME_EMAIL }}
   ca: letsencrypt
   type: dns
-  dir: {{ env.HYSTERIA_ACME_DIR | default('/acme') }}
+  dir: /acme
   dns:
     name: cloudflare
     config:
       cloudflare_api_token: {{ env.CF_DNS_API_TOKEN }}
-{% endif %}
 
 auth:
   type: password
   password: "{{ env.HYSTERIA_PASSWORD }}"
 
-{% if env.HYSTERIA_BANDWIDTH_UP %}
-bandwidth:
-  up: {{ env.HYSTERIA_BANDWIDTH_UP }}
-  down: {{ env.HYSTERIA_BANDWIDTH_DOWN | default(env.HYSTERIA_BANDWIDTH_UP) }}
-{% endif %}
-
-udpIdleTimeout: {{ env.HYSTERIA_UDP_IDLE_TIMEOUT | default('60s') }}
+udpIdleTimeout: 60s
 
 # Serve the static camouflage site for plain HTTP requests that reach the
-# QUIC port. Keeps the endpoint looking like an ordinary website.
+# QUIC port, so the endpoint looks like an ordinary website. It proxies
+# back to this host's own HTTPS site.
 masquerade:
   type: proxy
   proxy:
-    url: {{ env.HYSTERIA_MASQUERADE_URL | default('http://static:80') }}
+    url: https://{{ env.SITE_DOMAIN }}
     rewriteHost: true

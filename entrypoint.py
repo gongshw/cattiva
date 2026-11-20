@@ -30,12 +30,6 @@ REQUIRED = [
     "HYSTERIA_PASSWORD",
 ]
 
-# Hysteria 2 needs a domain for its certificate in ACME mode. In local
-# certificate mode the cert is supplied out of band, so no domain is required.
-HYSTERIA_TLS_MODE = os.environ.get("HYSTERIA_TLS_MODE", "acme")
-if HYSTERIA_TLS_MODE == "acme":
-    REQUIRED.append("HYSTERIA_DOMAIN")
-
 
 def host_rule(domains: str) -> str:
     """Build Host(`a.com`) || Host(`b.com`) from comma/space list."""
