@@ -64,9 +64,11 @@ jobs:
 
       - name: Seed Hysteria certificate cache
         run: |
-          # The volume has to exist and be populated before hysteria starts:
-          # without a cached certificate the ACME client tries to reach Let's
-          # Encrypt and the server exits on failure.
+          # Hysteria keeps its certificates in its own named volume, and it has
+          # to be populated before the container starts: without a cached
+          # certificate the ACME client tries to reach Let's Encrypt and the
+          # server exits on failure. Traefik's acme.json lives in a separate
+          # volume and is created by Traefik itself.
           docker volume create cattiva_hysteria-acme >/dev/null
           docker run --rm \
             -v cattiva_hysteria-acme:/acme \

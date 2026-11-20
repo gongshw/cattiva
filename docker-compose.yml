@@ -42,8 +42,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-config:/etc/traefik/static:ro
       - traefik-dynamic:/etc/traefik/dynamic
-      - ./data/acme:/acme
-      - ./data/traefik:/data
+      - traefik-acme:/acme
     environment:
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
     depends_on:
@@ -117,5 +116,6 @@ volumes:
   xray-vmess-config:
   traefik-dynamic:
   traefik-config:
+  traefik-acme:
   hysteria-config:
   hysteria-acme:
