@@ -14,6 +14,7 @@ FILES = [
     ("traefik",      BASE / "traefik/static/traefik.yml",       "yaml"),
     ("tcp-reality",  BASE / "traefik/dynamic/tcp-reality.yml",  "yaml"),
     ("http",         BASE / "traefik/dynamic/http.yml",         "yaml"),
+    ("hysteria",     BASE / "hysteria/server.yaml",             "yaml"),
 ]
 
 errors = 0

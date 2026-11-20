@@ -20,12 +20,14 @@ OUTPUTS = {
     "xray_vmess": OUTPUT_BASE / "xray-vmess",
     "traefik": OUTPUT_BASE / "traefik/static",
     "traefik_dynamic": OUTPUT_BASE / "traefik/dynamic",
+    "hysteria": OUTPUT_BASE / "hysteria",
 }
 
 REQUIRED = [
     "SITE_DOMAIN", "VLESS_UUID", "REALITY_PRIVATE_KEY",
     "REALITY_SERVER_NAME", "REALITY_SHORT_ID",
     "VMESS_UUID", "VMESS_WS_PATH",
+    "HYSTERIA_PASSWORD",
 ]
 
 
@@ -63,6 +65,9 @@ def main():
     render("traefik/traefik.yml.j2", OUTPUTS["traefik"] / "traefik.yml")
     render("traefik/dynamic/tcp-reality.yml.j2", OUTPUTS["traefik_dynamic"] / "tcp-reality.yml")
     render("traefik/dynamic/http.yml.j2", OUTPUTS["traefik_dynamic"] / "http.yml")
+
+    print("Generating Hysteria 2 config...")
+    render("hysteria/server.yaml.j2", OUTPUTS["hysteria"] / "server.yaml")
 
     print("Done.")
 

@@ -37,8 +37,45 @@ jobs:
           VMESS_UUID: ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb
           VMESS_WS_PATH: /proxy/ws
           SITE_ALIASES: cdn.test.example.com
+          HYSTERIA_PASSWORD: ci-test-hysteria-password
+          PORT_HTTPS: "443"
 
       - name: Validate generated configs
         run: python3 ci/validate.py
         env:
           CATTIVA_OUTPUT_DIR: /tmp/cattiva-test
+
+      - name: Assert no secrets leaked into tracked files
+        run: |
+          # Guard against committing real credentials. The generated Hysteria
+          # config embeds the Cloudflare token and the proxy password, but
+          # they must only ever come from the environment at runtime.
+          python3 - <<'PY'
+          import re, subprocess, sys
+
+          tracked = subprocess.run(
+              ["git", "ls-files", "-z"], capture_output=True, text=True, check=True
+          ).stdout.split("\0")
+
+          # A tracked file may mention the key, but the value must be either a
+          # Jinja placeholder (rendered at deploy time) or a CI dummy.
+          allowed = re.compile(r"^\s*(\{\{.*\}\}|dummy-token)\s*$")
+          key = "cloudflare_api" + "_token"
+          offenders = []
+          for path in filter(None, tracked):
+              try:
+                  text = open(path, encoding="utf-8", errors="ignore").read()
+              except OSError:
+                  continue
+              for line in text.splitlines():
+                  m = re.search(key + r":\s*(.*)$", line)
+                  if m and not allowed.match(m.group(1)):
+                      offenders.append(f"{path}: {line.strip()}")
+
+          if offenders:
+              print("❌ literal Cloudflare token value in tracked files:")
+              for o in offenders:
+                  print("   ", o)
+              sys.exit(1)
+          print("✅ no token values in tracked files")
+          PY

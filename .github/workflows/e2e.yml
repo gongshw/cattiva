@@ -32,7 +32,48 @@ jobs:
           VMESS_UUID=$(docker run --rm --entrypoint /usr/local/bin/xray ghcr.io/xtls/xray-core:latest uuid)
           VMESS_WS_PATH=/proxy/ws
           WWW_DIR=./www
+          HYSTERIA_PASSWORD=e2e-test-hysteria-password
           EOF
+
+          # The shipped template only supports ACME (DNS-01), which needs a
+          # real domain and a real Cloudflare token — neither exists in CI.
+          # Seed Hysteria's certificate cache instead: when a valid
+          # certificate is already cached for the domain, Hysteria skips
+          # issuance and starts normally. The certificate files below mirror
+          # the layout and metadata format Hysteria writes after a real
+          # issuance, so everything downstream is the production code path.
+          CA_DIR=acme-v02.api.letsencrypt.org-directory
+          SEED="data/hysteria-seed/certificates/$CA_DIR/test.local"
+          mkdir -p "$SEED"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj "/CN=test.local" \
+            -addext "subjectAltName=DNS:test.local" \
+            -keyout "$SEED/test.local.key" -out "$SEED/test.local.crt" 2>/dev/null
+          chmod 644 "$SEED/test.local.key" "$SEED/test.local.crt"
+
+          cat > "$SEED/test.local.json" << JSON
+          {
+            "sans": ["test.local"],
+            "issuer_data": {
+              "url": "https://acme-v02.api.letsencrypt.org/acme/cert/e2e",
+              "ca": "https://acme-v02.api.letsencrypt.org/directory",
+              "account": "https://acme-v02.api.letsencrypt.org/acme/acct/e2e"
+            }
+          }
+          JSON
+
+      - name: Seed Hysteria certificate cache
+        run: |
+          # Hysteria keeps its certificates in its own named volume, and it has
+          # to be populated before the container starts: without a cached
+          # certificate the ACME client tries to reach Let's Encrypt and the
+          # server exits on failure. Traefik's acme.json lives in a separate
+          # volume and is created by Traefik itself.
+          docker volume create cattiva_hysteria-acme >/dev/null
+          docker run --rm \
+            -v cattiva_hysteria-acme:/acme \
+            -v "$PWD/data/hysteria-seed:/seed:ro" \
+            alpine:latest sh -c 'cp -a /seed/. /acme/ && find /acme -type f'
 
       - name: Start stack
         run: |
@@ -119,8 +160,78 @@ jobs:
           [ -n "$code" ] && [ "$code" != "000" ]
           echo "✅ CDN alias routes ($code)"
 
+      - name: Hysteria 2 tunnel works
+        run: |
+          source .env
+
+          cat > /tmp/client-hysteria.yaml << EOF
+          server: hysteria:${PORT_HTTPS}
+          auth: "${HYSTERIA_PASSWORD}"
+          tls:
+            sni: test.local
+            insecure: true
+          socks5:
+            listen: 0.0.0.0:1080
+          EOF
+
+          docker inspect hysteria --format '{{.State.Status}}' | grep -q running || {
+            echo "❌ hysteria container is not running"
+            docker logs hysteria
+            exit 1
+          }
+          echo "✅ hysteria server running"
+
+          docker run -d --name hysteria-client \
+            -v /tmp/client-hysteria.yaml:/etc/hysteria/client.yaml:ro \
+            --network cattiva_cattiva \
+            tobyxdd/hysteria:v2.13.0 client -c /etc/hysteria/client.yaml --disable-update-check
+          sleep 4
+
+          docker logs hysteria-client 2>&1 | grep -q "connected to server" \
+            || { docker logs hysteria-client; exit 1; }
+          echo "✅ hysteria client connected"
+
+          # Keep stderr out of $code: docker prints image-pull progress there,
+          # which would otherwise be captured together with the HTTP status.
+          code=$(docker run --rm --network cattiva_cattiva alpine:latest sh -c \
+            "apk add -q curl >/dev/null 2>&1 && curl -sS --max-time 30 \
+             -x socks5h://hysteria-client:1080 -o /dev/null -w '%{http_code}' \
+             https://api.ipify.org" 2>/tmp/hysteria-curl.err) || true
+          echo "Hysteria tunnel returned: $code"
+          [ "$code" = "200" ] || {
+            echo "--- curl stderr ---"
+            cat /tmp/hysteria-curl.err
+            docker logs hysteria-client
+            exit 1
+          }
+          echo "✅ Hysteria 2 tunnel works"
+
+      - name: Hysteria masquerade serves the static site
+        run: |
+          source .env
+          HIP=$(docker inspect hysteria \
+            --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+          # Plain HTTP/3 requests that reach the QUIC port are answered by the
+          # masquerade handler, which is what makes the endpoint look like an
+          # ordinary website to a prober. SNI has to be the certificate's
+          # domain; -k skips verification of the self-signed test cert.
+          body=$(docker run --rm --network cattiva_cattiva ymuski/curl-http3 \
+            curl --http3 -k -sS --max-time 25 \
+            --resolve "test.local:${PORT_HTTPS}:${HIP}" \
+            "https://test.local:${PORT_HTTPS}/" 2>/tmp/masq.err) || true
+
+          echo "$body" | grep -qi "It Works" || {
+            echo "❌ masquerade did not serve the static site"
+            echo "--- curl stderr ---"; cat /tmp/masq.err
+            echo "--- hysteria log ---"; docker logs hysteria
+            exit 1
+          }
+          echo "✅ masquerade serves the static site over HTTP/3"
+
       - name: Cleanup
         if: always()
         run: |
           docker compose down -v 2>/dev/null
           docker rm -f xray-client 2>/dev/null || true
+          docker rm -f hysteria-client 2>/dev/null || true

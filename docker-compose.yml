@@ -7,9 +7,11 @@ services:
       - xray-vmess-config:/etc/xray-vmess
       - traefik-dynamic:/etc/traefik/dynamic
       - traefik-config:/etc/traefik/static
+      - hysteria-config:/etc/hysteria
       - ./xray:/templates/xray:ro
       - ./traefik/dynamic:/templates/traefik/dynamic:ro
       - ./traefik/traefik.yml.j2:/templates/traefik/traefik.yml.j2:ro
+      - ./hysteria/server.yaml.j2:/templates/hysteria/server.yaml.j2:ro
       - ./entrypoint.py:/entrypoint.py:ro
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:?err}
@@ -21,6 +23,10 @@ services:
       - VMESS_UUID=${VMESS_UUID:?err}
       - VMESS_WS_PATH=${VMESS_WS_PATH:-/proxy/ws}
       - SITE_ALIASES=${SITE_ALIASES:-}
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
+      - HYSTERIA_PASSWORD=${HYSTERIA_PASSWORD:?err}
+      # Hysteria 2 reuses the stack's public HTTPS port for QUIC/UDP.
+      - PORT_HTTPS=${PORT_HTTPS:-443}
     command: ["python3", "/entrypoint.py"]
 
   traefik:
@@ -36,8 +42,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-config:/etc/traefik/static:ro
       - traefik-dynamic:/etc/traefik/dynamic
-      - ./data/acme:/acme
-      - ./data/traefik:/data
+      - traefik-acme:/acme
     environment:
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:?err}
     depends_on:
@@ -81,6 +86,27 @@ services:
     networks:
       - cattiva
 
+  hysteria:
+    # Pinned to a specific release: Hysteria 2's config format changes
+    # between minor versions (e.g. the namedotcom DNS provider was removed in
+    # v2.11.0), so an implicit "latest" can break an existing deployment.
+    image: tobyxdd/hysteria:v2.13.0
+    container_name: hysteria
+    restart: always
+    command: ["server", "-c", "/etc/hysteria/server.yaml", "--disable-update-check"]
+    ports:
+      # Hysteria 2 is QUIC/UDP only. Traefik keeps TCP 443; UDP 443 is a
+      # separate protocol space, so both can use port 443.
+      - "${PORT_HTTPS:-443}:${PORT_HTTPS:-443}/udp"
+    volumes:
+      - hysteria-config:/etc/hysteria:ro
+      - hysteria-acme:/acme
+    depends_on:
+      config-gen:
+        condition: service_completed_successfully
+    networks:
+      - cattiva
+
 networks:
   cattiva:
     driver: bridge
@@ -90,3 +116,6 @@ volumes:
   xray-vmess-config:
   traefik-dynamic:
   traefik-config:
+  traefik-acme:
+  hysteria-config:
+  hysteria-acme:
